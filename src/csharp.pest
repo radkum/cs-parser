@@ -1,0 +1,522 @@
+single_line_comment = _{ "//" ~ (!NEWLINE ~ ANY)* }
+block_comment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
+COMMENT = _{ single_line_comment | block_comment }
+line_continuation = { "`" ~ NEWLINE }
+WHITESPACE     = _{ " " | "\t" | line_continuation | NEWLINE }
+
+program = { SOI ~ using_statement* ~ namespace? ~ EOI }
+
+namespace = { "namespace" ~ var_name ~ "{" ~ (field_declaration | class_statement | function_statement) ~ "}" }
+using_statement = { "using" ~  using_member_access ~ ";"* }
+field_declaration = { assignment_exp }
+
+//---------------------------------- BLOCKS
+param_block = { attribute_list? ~ ^"param" ~ "(" ~ parameter_list? ~ ")" }
+script_param_block ={param_block?}
+parameter_list = { script_parameter ~ ("," ~ script_parameter)* }
+script_parameter = { attribute_list? ~ variable ~ script_parameter_default? }
+//script_parameter_default = { "=" ~ expression } - maybe expression?
+script_parameter_default = { "=" ~ primary_expression }
+script_block_body = { named_blocks | statements_block }
+statements_block = { statements }
+named_blocks = { named_block+ }
+named_block = { block_name ~ statement_block }
+block_name = { ^"dynamicparam" | ^"begin" | ^"process" | ^"end" }
+statement_block = { "{" ~ statements? ~ "}" }
+
+//------------------------------------- STATEMENTS
+statements = _{ statement+ }
+
+statement = _{ 
+	if_statement 
+    | labeled_statement
+    | function_statement 
+    | class_statement
+    | enum_statement
+    | flow_control_statement
+    | trap_statement
+    | try_statement
+    | data_statement
+    | inlinescript_statement
+    | parallel_statement
+    | sequence_statement
+    | pipeline_statement 
+    | statement_terminator
+}
+statement_terminator = { (";" | NEWLINE)+ }
+
+if_statement = {
+    ^"if" ~ "(" ~ pipeline ~ ")"  ~ statement_block ~ elseif_clauses? ~ else_condition?
+}
+elseif_clauses = {else_if+}
+else_if = { ^"elseif" ~ "(" ~ pipeline ~ ")" ~ statement_block }
+else_condition = { ^"else" ~ statement_block }
+
+//------------------------------- LABELED STATEMENTS
+label = @{ ":" ~ ASCII_ALPHANUMERIC* }
+labeled_statement = _{ label? ~ (
+    switch_statement 
+    | foreach_statement 
+    | for_statement 
+    | while_statement 
+    | do_statement
+) }
+label_exp = { label | unary_exp }
+
+switch_statement = { ^"switch" ~ switch_parameters? ~ switch_condition ~ switch_body }
+switch_parameters = { switch_parameter+ }
+switch_parameter = { ^"-regex" | ^"-wildcard" | ^"-exact" | ^"-casesensitive" | ^"-parallel" }
+switch_condition = { "(" ~ pipeline ~ ")" | ^"-file" ~ switch_filename }
+switch_filename = { command_token | primary_expression }
+switch_body = { "{" ~ switch_clauses? ~ "}" }
+switch_clauses = { switch_clause+ }
+switch_clause = { switch_clause_condition ~  statement_block }
+switch_clause_condition = { command_token | primary_expression }
+
+
+foreach_statement = { ^"foreach" ~ foreach_parameter? ~ "(" ~ variable ~ ^"in" ~ pipeline ~ ")" ~ statement_block }
+foreach_parameter = { ^"-parallel" }
+
+while_statement = { ^"while" ~ "(" ~ while_condition ~ ")" ~ statement_block }
+while_condition = { pipeline }
+do_statement = { ^"do" ~ statement_block ~ ( ^"while" | ^"until" ) ~ "(" ~ while_condition ~ ")"}
+
+for_statement = {
+    ^"for" ~ "(" ~
+        for_initializer_block? ~
+        ")" ~
+        statement_block
+}
+for_initializer_block = {
+    for_initializer? ~ statement_terminator ~
+    for_condition?   ~ statement_terminator ~
+    for_iterator?    ~ statement_terminator?
+}
+for_initializer = { pipeline }
+for_condition   = { pipeline }
+for_iterator    = { pipeline }
+
+//---------------------------------- OTHER STATEMENTS
+return_type = {type_spec}
+function_statement = {
+    access_modifier? ~ modifier? ~ return_type ~function_name ~ function_parameter_declaration? ~ "{" ~ script_block? ~ "}"
+}
+function_keyword = { ^"function" | ^"filter" | ^"workflow" }
+function_name = @{ generic_token }
+function_parameter_declaration = _{ "(" ~ parameter_list? ~ ")" }
+
+flow_control_statement = {
+    flow_control_label_statement
+  | flow_control_pipeline_statement
+}
+flow_control_label_statement = { break_statement | continue_statement }
+break_statement = { ^"break" ~ label_exp? }
+continue_statement = { ^"continue" ~ label_exp? }
+
+flow_control_pipeline_statement = { throw_statement | return_statement | exit_statement }
+throw_statement = { ^"throw" ~ pipeline?}
+return_statement = { ^"return" ~ pipeline?}
+exit_statement = { ^"exit" ~ pipeline?}
+
+trap_statement = { ^"trap" ~ type_literal? ~ statement_block}
+
+inlinescript_statement = { ^"inlinescript" ~ statement_block}
+
+parallel_statement = { ^"parallel" ~ statement_block }
+
+sequence_statement = { ^"sequence" ~ statement_block }
+
+//--------------------------------- TRY CATCH
+try_statement = { ^"try" ~ statement_block ~ (catch_clauses ~ finally_clause? | finally_clause?) }
+catch_clauses = { catch_clause+ }
+catch_clause = { ^"catch" ~ catch_type_list? ~ statement_block }
+catch_type_list = { type_literal ~ ("," ~ type_literal)* }
+finally_clause = { ^"finally" ~ statement_block }
+
+//----------------------------------- DATA STATEMENTS
+data_statement = { ^"data" ~ simple_name? ~ data_commands_allowed? ~ statement_block }
+data_commands_allowed = { ^"-supportedcommand" ~ data_commands_list }
+data_commands_list = { data_command ~ ("," ~ data_command)* }
+data_command = { invocation_command_exp }
+
+//--------------------------------- CLASS STATEMENTS
+class_attribute_static = { ^"static" }
+class_attribute_hidden = { ^"hidden" }
+class_property_definition = {
+    attribute_info? ~
+    class_attribute_static? ~
+    class_attribute_hidden? ~
+    type_literal? ~
+    variable ~
+    ("=" ~ expression)?
+
+}
+class_method_definition = {
+    attribute_info? ~
+    class_attribute_static? ~
+    class_attribute_hidden? ~
+    type_literal? ~
+    simple_name ~
+    "(" ~ parameter_list? ~ ")" ~
+    "{" ~ script_block ~ "}"
+}
+class_statement = {
+    access_modifier ~ ^"class" ~ simple_name ~ (":" ~ simple_name ~ ("," ~ simple_name)*)? ~
+    "{" ~
+        (
+          field_declaration ~ statement_terminator* 
+          | class_method_definition
+        )* ~
+    "}"
+}
+access_modifier = { "public" | "private" | "protected" | "internal"}
+// -----------------------ENUM
+enum_statement = { ^"enum" ~ simple_name ~ "{" ~ (enum_member ~ statement_terminator ~ ";"*)* ~ "}" }
+enum_member = { simple_name ~ (("=" ~ decimal_integer) | ("=" ~ hex_integer) )? }
+
+// ---------------------- EXPRESSSION
+expression = { bitwise_exp ~ (logical_operator ~ bitwise_exp)* }
+logical_operator = { ^"-and" | ^"-or" | ^"-xor" }
+
+bitwise_exp = { as_expression ~ (bitwise_operator ~ as_expression)* }
+bitwise_operator = { ^"-band" | ^"-bor" | ^"-bxor" | ^"-shl" | ^"-shr" }
+
+as_expression = {comparison_exp ~ (^"-as" ~ (type_literal|comparison_exp))*}
+// strange case. -split and -join can be invoke without previous expression, eg. "-join 'some'"
+comparison_exp = {
+    additive_exp ~split_op ~ script_block_expression |
+    (additive_exp ~ (string_op ~ additive_exp)*) | 
+    empty ~ ((join_op | split_op) ~ additive_exp)+ 
+    }
+empty = {""}
+
+additive_exp = { multiplicative_exp ~ (WHITESPACE* ~ additive_op ~ WHITESPACE* ~ multiplicative_exp)* }
+additive_op = _{ plus | minus }
+plus = { "+" }
+minus = {"-"}
+
+multiplicative_exp = { format_exp ~ (WHITESPACE* ~ multiplicative_op ~ WHITESPACE* ~ format_exp)* }
+multiplicative_op = _{ mul | divide | mod }
+mul = { "*" }
+divide = { "/" }
+mod = { "%" }
+
+format_exp = { range_exp ~ ( format_op  ~ range_exp)* }
+format_op = _{ ^"-f" }
+
+range_exp = { 
+    decimal_integer ~ ".." ~  WHITESPACE* ~ array_literal_exp | 
+    array_literal_exp ~ (WHITESPACE* ~ ".." ~ WHITESPACE* ~ array_literal_exp)? }
+
+array_literal_exp = { unary_exp ~ ("," ~ unary_exp)* | array_literal_exp_special_case }
+array_literal_exp_typical_case = {unary_exp ~ ("," ~ unary_exp)*}
+array_literal_exp_special_case = {"," ~ array_literal_exp }
+
+unary_exp = { expression_with_unary_operator | primary_expression }
+
+negate_op = { "!" | ^"-not" }
+bitwise_negate_op = { ^"-bnot" }
+expression_with_unary_operator = {
+    (negate_op ~ unary_exp)
+    | (bitwise_negate_op ~ unary_exp)
+    | pre_inc_expression
+    | pre_dec_expression
+    | cast_expression
+}
+
+pre_inc_expression = { "++" ~ variable }
+pre_dec_expression = { "--" ~ variable }
+cast_expression = { !WHITESPACE ~ type_literal ~(unary_exp | parenthesized_expression) }
+
+//------------------------------------PRIMARY EXPRESSSION
+primary_expression = {
+    value_access
+    | post_inc_expression
+    | post_dec_expression
+    | value 
+}
+post_inc_expression = { variable ~ "++" }
+post_dec_expression = { variable ~ "--" }
+
+value_access = { value ~ 
+    (
+        method_invocation
+        | member_access
+        | static_access
+        | element_access
+    )+
+}
+member_access = { "." ~ member_name }
+static_access = { "::" ~ member_name }
+member_name = {
+    simple_name
+}
+element_access = { "[" ~ expression ~ "]" }
+method_invocation = { (member_access | static_access) ~ "(" ~ argument_list? ~ ")" }
+
+// --------------- PIPELINE
+pipeline_statement = _{ pipeline ~ statement_terminator? }
+pipeline = { assignment_exp | pipeline_with_tail }
+pipeline_with_tail = {(redirected_expression | command) ~ pipeline_tail?}
+redirected_expression = { expression ~ redirection? }
+pipeline_tail = { ("|" ~ command)+ }
+
+modifier = {access_modifier | "static" | "readonly" }
+assignment_exp = { modifier? ~ type_spec ~ assignable_variable ~ assignement_op ~ (if_statement | pipeline) }
+assignable_variable = { variable_access | value_access | variable}
+using_member_access = { member_name ~ member_access*}
+variable_access = { variable ~ 
+    (
+        member_access
+        | static_access
+        | element_access
+    )+
+}
+prefix_assign_op = { (additive_op | multiplicative_op) }
+assign_op = { "=" }
+assignement_op = {prefix_assign_op? ~ assign_op }
+
+// ---------------- COMMAND
+command = ${(
+    invocation_command
+  | cmdlet_command) ~ command_element*
+}
+foreach_command_name = { "%" | ^"foreach-object" | ^"foreach" }
+where_command_name = { "?" | ^"where-object" | ^"where" }
+powershell_command_name = { (^"powershell" | ^"pwsh") ~ ^".exe"? }
+cmdlet_command = ${ (powershell_command_name | where_command_name | foreach_command_name | command_name) }
+invocation_command = !{ current_scope_invocation_command | new_scope_invocation_command }
+current_scope_invocation_command = { "." ~ invocation_command_exp }
+new_scope_invocation_command = { "&" ~ invocation_command_exp }
+BREAK = _{ " " | "\t" }
+command_element = _{ 
+    BREAK 
+    | stop_parsing
+    | command_parameter
+    | redirection
+    | command_argument ~ argument_list?
+    | splatten_arg
+}
+
+command_parameter = @{    
+    "-"+ ~ command_parameter_chars+
+    | "--"
+}
+splatten_arg = ${ "@" ~ (scope_keyword ~ ":")? ~ var_name }
+
+command_parameter_chars = _{ ASCII_ALPHA | ASCII_DIGIT | "_" | "?" | "-" | "`" }
+stop_parsing = @{ "--%" ~ (!(NEWLINE) ~ ANY)* }
+command_argument_sep = { ":" }
+command_argument = {
+      parenthesized_expression
+    | script_block_expression
+    | array_literal_exp 
+    | generic_token
+    | command_argument_sep ~ array_literal_exp
+    | command_argument_sep ~ generic_token?
+}
+
+invocation_command_exp = _{ cmdlet_command | path_command_name | primary_expression }
+
+command_call = { command_ident ~ expression* }
+command_name = { command_name_base  ~ extra_command_token? }
+command_name_base = @{ (!FORBIDDEN_CHARS ~ ANY)+ }
+FORBIDDEN_CHARS = _{
+      "{" | "}" | "(" | ")" | ";" | "," | "|" | "&" | "$" | "`" | "\"" | "'" | WHITESPACE | NEWLINE
+    | "[" | "]" | "+" | "-" | "*" | "/" | "@" | "<" | "!" | "%" | "="
+}
+
+SECOND_FORBIDDEN_CHARS = _{
+      "{" | "}" | "(" | ")" | ";" | "," | "|" | "&" | "\"" | "'" | WHITESPACE | "\r" | "\n"
+}
+
+
+extra_command_token = {
+      immediate_chars
+    | doublequoted_string_literal
+    | "\"\""
+    | "''" 
+}
+immediate_chars = @{ (!SECOND_FORBIDDEN_CHARS ~ ANY)+ }
+path_command_name = @{ (ASCII_ALPHANUMERIC | "_" | "?" | "-" | "." | "\\")+ }
+
+//-------------------------------------STRING OPERATORS
+string_op = { replace_op | split_op | cmp_op | contain_op | join_op | type_check_op }
+replace_op = { ^"-replace" | ^"-ireplace" | ^"-creplace" }
+split_op = { ^"-split" | ^"-isplit" | ^"-csplit" }
+join_op = { ^"-join" }
+cmp_op = { 
+    ^"-eq" | ^"-ieq" | ^"-ceq" | ^"-ge" | ^"-cge" | ^"-ige" | ^"-gt" | ^"-cgt" | ^"-igt"
+    | ^"-le" | ^"-cle" | ^"-ile" | ^"-lt" | ^"-clt" | ^"-ilt" | ^"-ne" | ^"-cne" | ^"-ine"
+    | ^"-match" | ^"-cmatch" | ^"-imatch" | ^"-notmatch" | ^"-cnotmatch" | ^"-inotmatch"
+    | ^"-like"| ^"-clike" | ^"-ilike" | ^"-notlike" | ^"-inotlike" | ^"-cnotlike" }
+contain_op = { ^"-inotin" | ^"-notin" | ^"-inotin" | ^"-cnotin" | ^"-contains" | ^"-ccontains" | ^"-icontains" | ^"-notcontains" | ^"-inotcontains" | ^"-cnotcontains" | ^"-in" | ^"-iin" | ^"-cin" }
+type_check_op = { ^"-isnot" | ^"-is" }
+
+simple_operator = _{ "-" | "+" | "*" | "/" | "%" }
+
+value = {
+    parenthesized_expression
+    | sub_expression 
+    | array_expression 
+    | script_block_expression 
+    | hash_literal_expression 
+    | literal 
+    | type_literal
+    | variable
+}
+parenthesized_expression = !{ "(" ~ pipeline ~ ")"}
+sub_expression = !{ "$(" ~ pipeline? ~ ")" }
+array_expression = !{ "@(" ~ statements? ~ ")" }
+script_block_expression = !{ "{" ~ script_block ~ "}" }
+script_block = { script_param_block ~ ";"* ~ script_block_body? }
+
+hash_literal_expression = { "@{" ~ hash_literal_body? ~ "}" }
+hash_literal_body = _{ hash_entry* }
+hash_entry = { key_expression ~ "=" ~ (type_literal | statement) ~ ";"*}
+key_expression = { simple_name | unary_exp }
+
+variable = {
+    var_name
+}
+parenthesized_variable = { "(" ~ variable ~ ")" }
+special_variable = { "$$" | "$^" | "$?" | "$_" }
+scoped_variable = { "$" ~ (scope_keyword ~ ":")? ~ var_name }
+braced_variable = { "${" ~ braced_variable_content ~ "}" }
+
+var_name = @{ identifier | "?" }
+scope_keyword = { ^"global" | ^"local" | ^"private" | ^"script" | ^"using" | ^"workflow" | ^"env" | ^"alias" | ^"function" | ^"variable" }
+braced_variable_content = @{ (!"}" ~ ANY)+ }
+
+argument_list      = { !redirection ~ expression }
+command_ident = @{ ASCII_ALPHANUMERIC ~ (ASCII_ALPHANUMERIC | "-")* }
+identifier = @{ (ASCII_ALPHANUMERIC | "_")+ }
+qualified_ident = { identifier ~ ("." ~ identifier)* }
+
+simple_name = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+
+redirections = { redirection+ }
+redirection = { merging_redirection_operator | (file_redirection_operator ~ redirected_file_name)}
+redirected_file_name = { primary_expression | command_argument }
+file_redirection_operator = { ">" | ">>" | "2>" | "2>>" | "3>" | "3>>" | "4>" | "4>>" | "5>" | "5>>" | "6>" | "6>>" | "*>" | "*>>" | "<" }
+merging_redirection_operator = { "*>&1" | "2>&1" | "3>&1" | "4>&1" | "5>&1" | "6>&1" | "*>&2" | "1>&2" | "3>&2" | "4>&2" | "5>&2" | "6>&2" }
+
+verbatim_command_arg= { "--%" ~ verbatim_command_argument_chars }
+verbatim_command_argument_chars = { verbatim_piece+ }
+
+verbatim_piece = _{
+      quoted_string
+    | ampersand_chunk
+    | generic_verbatim_chunk
+}
+quoted_string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+ampersand_chunk = @{ "&" ~ (!"&" ~ ANY)* }
+generic_verbatim_chunk = @{ (!("|" | "\r" | "\n") ~ ANY)+ }
+
+//--------------------STRING LITERAL
+string_literal = {
+    doublequoted_string_literal
+  | singlequoted_string_literal
+  | doublequoted_multiline_string_literal
+  | singlequoted_multiline_string_literal
+}
+
+doublequoted_string_literal = ${
+	 "\""  ~ dq_string_content* ~ "\""
+}
+
+dq_string_content = ${
+      dq_escape
+    | variable
+    | dq_text_chunk
+    | sub_expression
+    | dollar_escape
+    | backtick_escape
+    | WHITESPACE
+}
+
+dq_escape = @{ "\"\"" }
+dollar_escape = @{ "$" ~ (backtick_escape | "\\" )? }
+backtick_escape = @{ "`" ~ non_whitespace_char ? } // handle backtick+char like `n
+non_whitespace_char  = { !WHITESPACE ~ ANY }
+dq_text_chunk = { (!("$" | "\"" | "`") ~ ANY)+ }
+
+doublequoted_multiline_string_literal = @{
+    dq_multiline_string_start ~ dq_multiline_content* ~ dq_multiline_string_end
+}
+dq_multiline_content = ${
+	variable
+    | sub_expression
+    | backtick_escape
+    | dollar_escape
+    | dq_ml_text_chunk
+    | dq_newline
+}
+dq_newline = {NEWLINE ~ !"\"@"}
+dq_multiline_string_start = @{ "@\"" ~ NEWLINE }
+dq_ml_text_chunk = ${ (!("\"@" | "$" | "`" | NEWLINE) ~ ANY)+ }
+dq_multiline_string_end = @{ NEWLINE ~ "\"@" }
+
+singlequoted_string_literal = @{ "'" ~ sq_string_content* ~ "'" }
+sq_string_content = _{ "''" | (!"'" ~ ANY)+ }
+
+singlequoted_multiline_string_literal = ${
+    sq_multiline_start ~ sq_multiline_content*  ~ sq_multiline_end
+}
+
+sq_multiline_start = _{ "@'" ~ NEWLINE }
+sq_multiline_content = @{ ((!("'@" | "\r" | "\n") ~ ANY)+) | sq_newline }
+sq_multiline_end = _{ NEWLINE ~ "'@" }
+sq_newline = {NEWLINE ~ !"'@"}
+
+//----------------------LITERAL
+literal = _{
+	number_literal
+    | string_literal 
+}
+number_literal = { additive_op? ~ number ~ (unit ~ ^"b")? }
+unit = { ^"k" | ^"m" | ^"g" | ^"t" | ^"p"}
+
+number = ${ float | hex_integer| decimal_integer }
+
+decimal_int = @{ ASCII_DIGIT+}
+hex_int = @{HEX_DIGIT+}
+decimal_integer = { decimal_int ~ (^"l" | ^"d" )? }
+hex_integer = { ^"0x" ~ hex_int ~ ^"l"? }
+float = {float_1 | float_2 | float_3}
+float_1 = { ASCII_DIGIT+ ~ "." ~ !"." ~ ASCII_DIGIT* ~ float_mantis? }
+float_2 = @{ "." ~ ASCII_DIGIT+ ~ float_mantis? }
+float_3 = @{ ASCII_DIGIT+ ~ float_mantis }
+float_mantis = {^"e" ~ ("+" | "-") ~ ASCII_DIGIT+}
+
+
+//----------------------TYPE LITERAL
+type_literal = { "(" ~ type_spec ~ ")" }
+type_name = { type_identifier ~ ("." ~ type_identifier)* }
+type_identifier = @{ (ASCII_ALPHANUMERIC | "_")+ }
+type_spec = @{
+      type_name ~ "[" ~ dimension? ~ "]"
+    | type_name ~ "[" ~ generic_type_arguments ~ "]"
+    | type_name
+}
+dimension = { ","+ }
+generic_type_arguments = { type_spec ~ ("," ~ type_spec)* }
+
+//-----------------------ATTRIBUTES
+attribute_list       = { attribute+ }
+attribute            = { attribute_info | type_literal }
+attribute_info       = {"[" ~ attribute_name ~ "(" ~ attribute_arguments? ~ ")" ~ "]"}
+attribute_name       = { type_spec }
+attribute_arguments  = { attribute_argument ~ ("," ~ attribute_argument)* }
+attribute_argument   = { expression | (simple_name ~ ("=" ~ expression)?) }
+
+//-----------------------GENERIC TOKEN
+generic_token = @{ generic_token_start ~ generic_token_rest* }
+generic_token_start = _{
+    !( ";" | "(" | ")" | "$" | "\"" | "'" | "-" | "{" | "}" | "@" | "|" | "[" | "`" | WHITESPACE | NEWLINE ) ~ ANY
+}
+generic_token_rest = _{
+    !(WHITESPACE | "(" | ")" | "}" | "|" | ";" | ",") ~ ANY
+}
+command_token = @{ command_char+ }
+command_char = _{ !( "(" | ")" | "{" | "}" | ";" | NEWLINE ) ~ ANY }
