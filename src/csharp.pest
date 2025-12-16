@@ -76,15 +76,13 @@ labeled_statement = _{ label? ~ (
 ) }
 label_exp = { label | unary_exp }
 
-switch_statement = { ^"switch" ~ switch_parameters? ~ switch_condition ~ switch_body }
-switch_parameters = { switch_parameter+ }
-switch_parameter = { ^"-regex" | ^"-wildcard" | ^"-exact" | ^"-casesensitive" | ^"-parallel" }
-switch_condition = { "(" ~ expression ~ ")" | ^"-file" ~ switch_filename }
+switch_statement = { ^"switch" ~ switch_condition ~ switch_body }
+switch_condition = { "(" ~ expression ~ ")" }
 switch_filename = { command_token | primary_expression }
 switch_body = { "{" ~ switch_clauses? ~ "}" }
 switch_clauses = { switch_clause+ }
-switch_clause = { switch_clause_condition ~  statement_block }
-switch_clause_condition = { command_token | primary_expression }
+switch_clause = { switch_clause_condition ~ ":" ~ (!"break" ~ (if_statement | code_line))* ~ "break;"? }
+switch_clause_condition = { "case" ~ primary_expression }
 
 
 foreach_statement = { ^"foreach" ~ foreach_parameter? ~ "(" ~ variable ~ ^"in" ~ expression ~ ")" ~ statement_block }
@@ -169,7 +167,7 @@ class_property_definition = {
 inheritance = { ":" ~ simple_name ~ ("," ~ simple_name)* }
 
 class_statement = {
-    attribute_list? ~ access_modifier ~ "class" ~ simple_name ~ inheritance? ~
+    attribute_list? ~ access_modifier ~ function_attribute* ~("class" | "struct") ~ simple_name ~ inheritance? ~
     "{" ~
         class_body ~
     "}"
@@ -180,7 +178,7 @@ class_body = {
 
 access_modifier = { new_keyword? ~ ("public" | "private" | "protected" | "internal") }
 // -----------------------ENUM
-enum_statement = { attribute_list? ~ access_modifier? ~ "enum" ~ simple_name ~ inheritance? ~ "{" ~ (assignment_exp ~ ",")* ~ "}" }
+enum_statement = { attribute_list? ~ access_modifier? ~ "enum" ~ simple_name ~ inheritance? ~ "{" ~ assignment_exp ~("," ~ assignment_exp)* ~ "}" }
 enum_member = { simple_name ~ (("=" ~ decimal_integer) | ("=" ~ hex_integer) )? }
 
 // ---------------------- EXPRESSION
