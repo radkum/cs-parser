@@ -4,17 +4,17 @@ COMMENT = _{ single_line_comment | block_comment }
 line_continuation = { "`" ~ NEWLINE }
 WHITESPACE     = _{ " " | "\t" | line_continuation | NEWLINE }
 
-program = { SOI ~ using_statement* ~ namespace? ~ EOI }
+program = { SOI ~ using_statement* ~ ( namespace | class_statement )+ ~ EOI }
 
-namespace = { "namespace" ~ var_name ~ "{" ~ class_body ~ "}" }
+namespace = { "namespace" ~ var_name ~ statement_block }
 using_statement = { "using" ~  using_member_access ~ ";"* }
 
 
 static_const_attribute = { "static" | "const" }
 extern_attribute = { "extern" }
+readonly_attribute = { "readonly" }
 field_hidden = {new_keyword}
-modifier = {access_modifier | "static" | "readonly" }
-field_attribute = {attribute_list? ~ access_modifier? ~ field_hidden? ~ static_const_attribute? ~ extern_attribute? }
+field_attribute = {attribute_list? ~ access_modifier? ~ (field_hidden | static_const_attribute | readonly_attribute | extern_attribute)* }
 new_keyword = { "new" }
 new_expression = { new_keyword ~ type_literal}
 new_list_initialization = { new_keyword ~ type_literal? ~ (initializer_list | curly_arg_list | bracket_arg_list) }
@@ -27,10 +27,9 @@ code_line = { (assignment_exp | field_initialization | field_declaration | expre
 
 //---------------------------------- BLOCKS
 parameter_list = { fn_parameter ~ ("," ~ fn_parameter)* }
-fn_parameter = { attribute_list? ~ type_literal ~ variable ~ fn_parameter_default? }
+fn_parameter = { attribute_list? ~ "ref"? ~ "out"? ~ type_literal ~ variable ~ fn_parameter_default? }
 fn_parameter_default = { "=" ~ primary_expression }
 
-function_body = { statement* }
 named_blocks = { named_block+ }
 named_block = { block_name ~ statement_block }
 block_name = { ^"dynamicparam" | ^"begin" | ^"process" | ^"end" }
@@ -59,7 +58,7 @@ statement = {
 statement_terminator = { (";" | NEWLINE)+ }
 
 if_statement = {
-    ^"if" ~ "(" ~ expression ~ ")"  ~ statement_block ~ elseif_clauses? ~ else_condition?
+    ^"if" ~ "(" ~ expression ~ ")"  ~ (statement_block | statement) ~ elseif_clauses? ~ else_condition?
 }
 elseif_clauses = {else_if+}
 else_if = { ^"elseif" ~ "(" ~ expression ~ ")" ~ statement_block }
@@ -85,7 +84,7 @@ switch_clause = { switch_clause_condition ~ ":" ~ (!"break" ~ (if_statement | co
 switch_clause_condition = { "case" ~ primary_expression }
 
 
-foreach_statement = { ^"foreach" ~ foreach_parameter? ~ "(" ~ variable ~ ^"in" ~ expression ~ ")" ~ statement_block }
+foreach_statement = { ^"foreach" ~ foreach_parameter? ~ "(" ~ type_literal? ~ variable ~ "in" ~ expression ~ ")" ~ statement_block }
 foreach_parameter = { ^"-parallel" }
 
 while_statement = { ^"while" ~ "(" ~ while_condition ~ ")" ~ statement_block }
@@ -103,14 +102,14 @@ for_initializer_block = {
     for_condition?   ~ statement_terminator ~
     for_iterator?    ~ statement_terminator?
 }
-for_initializer = { expression }
+for_initializer = { field_initialization | assignment_exp | expression }
 for_condition   = { expression }
 for_iterator    = { expression }
 
 //---------------------------------- OTHER STATEMENTS
 return_type = {type_literal}
 function_statement = {
-    function_header ~ "{" ~ function_body? ~ "}"
+    function_header ~ statement_block
 }
 function_declaration = {function_header ~ ";"*}
 function_header = { attribute_list? ~ access_modifier? ~ function_attribute* ~ return_type ~ function_name ~ function_parameter_declaration }
@@ -140,10 +139,10 @@ parallel_statement = { ^"parallel" ~ statement_block }
 sequence_statement = { ^"sequence" ~ statement_block }
 
 //--------------------------------- TRY CATCH
-try_statement = { ^"try" ~ statement_block ~ (catch_clauses ~ finally_clause? | finally_clause?) }
+try_statement = { "try" ~ statement_block ~ (catch_clauses ~ finally_clause? | finally_clause?) }
 catch_clauses = { catch_clause+ }
-catch_clause = { ^"catch" ~ catch_type_list? ~ statement_block }
-catch_type_list = { cast_literal ~ ("," ~ cast_literal)* }
+catch_clause = { "catch" ~ catch_type_list? ~ statement_block }
+catch_type_list = { "(" ~ field_declaration ~ ")" }
 finally_clause = { ^"finally" ~ statement_block }
 
 //----------------------------------- DATA STATEMENTS
@@ -153,7 +152,7 @@ data_commands_list = { data_command ~ ("," ~ data_command)* }
 data_command = { invocation_command_exp }
 
 //--------------------------------- CLASS STATEMENTS
-function_attribute = { "static" | "hidden" | "virtual" | "override" | "extern"}
+function_attribute = { "static" | "hidden" | "virtual" | "override" | "extern" | "readonly" }
 class_property_definition = {
     attribute_list? ~
     access_modifier? ~
@@ -167,13 +166,9 @@ class_property_definition = {
 inheritance = { ":" ~ simple_name ~ ("," ~ simple_name)* }
 
 class_statement = {
-    attribute_list? ~ access_modifier ~ function_attribute* ~("class" | "struct") ~ simple_name ~ inheritance? ~
-    "{" ~
-        class_body ~
-    "}"
-}
-class_body = {
-        statement*
+   attribute_list? ~ access_modifier? ~ function_attribute* ~ 
+   ("class" | "struct") ~ simple_name ~ inheritance? 
+   ~ statement_block
 }
 
 access_modifier = { new_keyword? ~ ("public" | "private" | "protected" | "internal") }
@@ -254,7 +249,7 @@ member_name = {
     simple_name
 }
 element_access = { "[" ~ expression ~ "]" }
-method_invocation = { (member_access | static_access) ~ "(" ~ argument_list? ~ ")" }
+method_invocation = { (member_access | static_access) ~ parenthesis_arg_list }
 parenthesis_arg_list = { "(" ~ argument_list? ~ ")" }
 curly_arg_list = { "{" ~ argument_list? ~ "}" }
 bracket_arg_list = { "[" ~ argument_list? ~ "]" }
@@ -369,7 +364,7 @@ dictionary_string = { "[" ~ string_literal ~"]"}
 key_expression = { simple_name | unary_exp | dictionary_string }
 
 variable = {
-    var_name
+    "ref"? ~ var_name
 }
 parenthesized_variable = { "(" ~ variable ~ ")" }
 special_variable = { "$$" | "$^" | "$?" | "$_" }
@@ -380,7 +375,7 @@ var_name = @{ identifier }
 scope_keyword = { ^"global" | ^"local" | ^"private" | ^"script" | ^"using" | ^"workflow" | ^"env" | ^"alias" | ^"function" | ^"variable" }
 braced_variable_content = @{ (!"}" ~ ANY)+ }
 
-argument_list      = { expression ~ ("," ~ expression)* }
+argument_list      = { "out"? ~ expression ~ ("," ~ "out"? ~ expression)* }
 command_ident = @{ ASCII_ALPHANUMERIC ~ (ASCII_ALPHANUMERIC | "-")* }
 identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 qualified_ident = { identifier ~ ("." ~ identifier)* }
@@ -502,7 +497,7 @@ attribute            = { attribute_info | cast_literal }
 attribute_info       = {"[" ~ attribute_name ~ ("(" ~ attribute_arguments? ~ ")")? ~ "]"}
 attribute_name       = { type_literal }
 attribute_arguments  = { attribute_argument ~ ("," ~ attribute_argument)* }
-attribute_argument   = { (type_literal ~ ("=" ~ expression)?) | type_literal | expression }
+attribute_argument   = { (expression ~ ("=" ~ expression)?) }
 
 //-----------------------GENERIC TOKEN
 generic_token = @{ generic_token_start ~ generic_token_rest* }
