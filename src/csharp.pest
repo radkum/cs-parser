@@ -6,7 +6,7 @@ WHITESPACE     = _{ " " | "\t" | line_continuation | NEWLINE }
 
 program = { SOI ~ using_statement* ~ ( namespace | class_statement )+ ~ EOI }
 
-namespace = { "namespace" ~ var_name ~ statements_block }
+namespace = { "namespace" ~ var_name ~ statement_block }
 using_statement = { "using" ~  member_chain ~ ";"* }
 
 
@@ -31,9 +31,10 @@ fn_parameter = { attribute_list? ~ "ref"? ~ "out"? ~ type_literal ~ variable ~ f
 fn_parameter_default = { "=" ~ primary_expression }
 
 named_blocks = { named_block+ }
-named_block = { block_name ~ statements_block }
+named_block = { block_name ~ statement_block }
 block_name = { ^"dynamicparam" | ^"begin" | ^"process" | ^"end" }
-statements_block = { "{" ~ statement* ~ "}" }
+statement_block = { "{" ~ statement* ~ "}" }
+statements = { statement* }
 
 //------------------------------------- STATEMENTS
 statement = _{ 
@@ -51,11 +52,11 @@ statement = _{
 statement_terminator = { (";" | NEWLINE)+ }
 
 if_statement = {
-    ^"if" ~ "(" ~ expression ~ ")"  ~ (statements_block | statement) ~ elseif_clauses? ~ else_condition?
+    ^"if" ~ "(" ~ expression ~ ")"  ~ (statement_block | statement) ~ elseif_clauses? ~ else_condition?
 }
 elseif_clauses = {else_if+}
-else_if = { ^"elseif" ~ "(" ~ expression ~ ")" ~ statements_block }
-else_condition = { ^"else" ~ statements_block }
+else_if = { ^"elseif" ~ "(" ~ expression ~ ")" ~ statement_block }
+else_condition = { ^"else" ~ statement_block }
 
 //------------------------------- LABELED STATEMENTS
 label = @{ ":" ~ ASCII_ALPHANUMERIC* }
@@ -76,16 +77,16 @@ switch_clause = { switch_clause_condition ~ ":" ~ (!"break" ~ (statement))* ~ "b
 switch_clause_condition = { "case" ~ primary_expression }
 
 
-foreach_statement = { foreach_header ~ statements_block }
+foreach_statement = { foreach_header ~ statement_block }
 foreach_header = { "foreach" ~ foreach_parameter? ~ "(" ~ type_literal? ~ variable ~ "in" ~ expression ~ ")"}
 foreach_parameter = { ^"-parallel" }
 
-while_statement = { while_header ~ statements_block }
+while_statement = { while_header ~ statement_block }
 while_header = { "while" ~ "(" ~ expression ~ ")" }
 
-do_statement = { ^"do" ~ statements_block ~ ( ^"while" | ^"until" ) ~ "(" ~ expression ~ ")"}
+do_statement = { ^"do" ~ statement_block ~ ( ^"while" | ^"until" ) ~ "(" ~ expression ~ ")"}
 
-for_statement = { for_header ~ statements_block }
+for_statement = { for_header ~ statement_block }
 for_header = {"for" ~ "(" ~ for_initializer_block? ~ ")" }
 for_initializer_block = {
     for_initializer? ~ statement_terminator ~
@@ -99,7 +100,7 @@ for_iterator    = { expression }
 //---------------------------------- OTHER STATEMENTS
 return_type = {type_literal}
 function_statement = {
-    function_header ~ statements_block
+    function_header ~ statement_block
 }
 function_declaration = {function_header ~ ";"*}
 function_header = { function_header_prefix ~ return_type ~ function_name ~ function_parameter_declaration }
@@ -121,11 +122,11 @@ return_statement = { "return" ~ expression?}
 exit_statement = { "exit" ~ expression?}
 
 //--------------------------------- TRY CATCH
-try_statement = { "try" ~ statements_block ~ (catch_clauses ~ finally_clause? | finally_clause?) }
+try_statement = { "try" ~ statement_block ~ (catch_clauses ~ finally_clause? | finally_clause?) }
 catch_clauses = { catch_clause+ }
-catch_clause = { "catch" ~ catch_type_list? ~ statements_block }
+catch_clause = { "catch" ~ catch_type_list? ~ statement_block }
 catch_type_list = { "(" ~ field_declaration ~ ")" }
-finally_clause = { "finally" ~ statements_block }
+finally_clause = { "finally" ~ statement_block }
 
 //--------------------------------- CLASS STATEMENTS
 function_attribute = { "static" | "hidden" | "virtual" | "override" | "extern" | "readonly" }
@@ -147,8 +148,9 @@ inheritance = { ":" ~ simple_name ~ ("," ~ simple_name)* }
 
 class_statement = {
    function_header_prefix ~ 
-   ("class" | "struct") ~ simple_name ~ inheritance? 
-   ~ (function_statement | field_declaration | field_initialization)*
+   ("class" | "struct") ~ simple_name ~ inheritance? ~ "{"
+   ~ (function_statement | function_declaration | field_declaration | field_initialization)*
+   ~ "}"
 }
 
 access_modifier = { new_keyword? ~ ("public" | "private" | "protected" | "internal") }
@@ -340,9 +342,9 @@ initializer_list = { "{" ~ list_entry ~ ("," ~ list_entry)* ~ "}" }
 dictionary_string = { "[" ~ string_literal ~"]"}
 key_expression = { simple_name | unary_exp | dictionary_string }
 
-variable = {
-    "ref"? ~ var_name
-}
+//variable = { "ref"? ~ var_name }
+variable = { "true" | "false" | var_name }
+
 parenthesized_variable = { "(" ~ variable ~ ")" }
 special_variable = { "$$" | "$^" | "$?" | "$_" }
 scoped_variable = { "$" ~ (scope_keyword ~ ":")? ~ var_name }
@@ -352,7 +354,10 @@ var_name = @{ identifier }
 scope_keyword = { ^"global" | ^"local" | ^"private" | ^"script" | ^"using" | ^"workflow" | ^"env" | ^"alias" | ^"function" | ^"variable" }
 braced_variable_content = @{ (!"}" ~ ANY)+ }
 
-argument_list      = { "out"? ~ expression ~ ("," ~ "out"? ~ expression)* }
+argument_list      = { arg ~ ("," ~ arg)* }
+arg = _{ named_arg | simple_arg  }
+simple_arg = { "out"? ~ expression }
+named_arg = { var_name ~ ":" ~ expression }
 command_ident = @{ ASCII_ALPHANUMERIC ~ (ASCII_ALPHANUMERIC | "-")* }
 identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 qualified_ident = { identifier ~ ("." ~ identifier)* }

@@ -827,7 +827,7 @@ impl<'a> CSharpSession {
     }
 
     fn eval_statement_block(&mut self, token: Pair<'a>) -> ParserResult<Val> {
-        check_rule!(token, Rule::statements_block);
+        check_rule!(token, Rule::statement_block);
         let mut statements = vec![];
         for token in token.into_inner() {
             match self.eval_statement(token.clone()) {
@@ -1394,7 +1394,7 @@ impl<'a> CSharpSession {
     }
 
     fn parse_statements_block(&mut self, token: Pair<'a>) -> ParserResult<ScriptBlock> {
-        check_rule!(token, Rule::statements_block);
+        check_rule!(token, Rule::statement_block);
 
         let body = token.as_str().to_string();
 
@@ -2208,82 +2208,93 @@ mod tests {
     #[test]
     fn comment_and_semicolon() {
         let input = r#"
-# This is a single line comment
-$a = 1; $b = 2; Write-Output $a
+// This is a single line comment
+var a = 1;
+int b = 2; 
+Console.WriteLine(a);
 
-Write-Output "Hello"  # Another comment
+Console.WriteLine("Hello");  // Another comment
 
-<#
+/*
     This is a
     multi-line block comment
-#>
+*/
 "#;
 
-        let _ = CSharpSession::parse(Rule::program, input).unwrap();
+        let _ = CSharpSession::parse(Rule::statements, input).unwrap();
     }
 
     #[test]
     fn while_loop() {
         let input = r#"
-while ($true) {
-    if ($someCondition) {
-        break
+while (true) {
+    if (5 > 6) {
+        break;
     }
-    # other code
+    // other code
 }
 "#;
 
-        let _ = CSharpSession::parse(Rule::program, input).unwrap();
+        let _ = CSharpSession::parse(Rule::statements, input).unwrap();
     }
 
     #[test]
     fn foreach_loop() {
         let input = r#"
-foreach ($n in $numbers) {
-    Write-Output $n
+foreach (int n in $numbers) {
+    Console.WriteLine(n);
 }
 "#;
 
-        let _ = CSharpSession::parse(Rule::program, input).unwrap();
+        let _ = CSharpSession::parse(Rule::statements, input).unwrap();
     }
 
     #[test]
     fn for_loop() {
         let input = r#"
-# Comma separated assignment expressions enclosed in parentheses.
-for (($i = 0), ($j = 0); $i -lt 10; $i++)
+// Comma separated assignment expressions enclosed in parentheses.
+for (int i = 0; i < 5; i++) 
 {
-    "`$i:$i"
-    "`$j:$j"
+  Console.WriteLine(i);
 }
 "#;
 
-        let _ = CSharpSession::parse(Rule::program, input).unwrap();
+        let _ = CSharpSession::parse(Rule::statements, input).unwrap();
     }
 
     #[test]
     fn switch() {
         let input = r#"
-switch ($var) {
-    "a" { Write-Output "A" }
-    1 { Write-Output "One" }
-    default { Write-Output "Other" }
+switch(expression) 
+{
+  case x:
+    // code block
+    break;
+  case y:
+    // code block
+    break;
+  default:
+    // code block
+    break;
 }
 "#;
 
-        let _ = CSharpSession::parse(Rule::program, input).unwrap();
+        let _ = CSharpSession::parse(Rule::statements, input).unwrap();
     }
 
     #[test]
     fn functions() {
         let input = r#"
-function Get-Square {
-    param($x)
-    return $x * $x
-}
-
-function Say-Hello {
-    Write-Output "Hello"
+class Program
+{
+  static int MyMethod(string[] fname, int age) 
+  {
+    return age;
+  }
+  static void Main(string[] args)
+  {
+    MyMethod(child3: "John", child1: "Liam", child2: "Liam");
+  }
 }
 "#;
 
@@ -2293,104 +2304,54 @@ function Say-Hello {
     #[test]
     fn if_expression() {
         let input = r#"
-$x="hello"
-        Write-Host $x
-        $y = 42
-        Start-Process "notepad.exe"
-
-        $x = 42
-if ($x -eq 1) {
-    Write-Output "One"
-} elseif ($x -eq 2) {
-    Write-Output "Two"
-} else {
-    Write-Output "Other"
+int time = 22;
+if (time < 10) 
+{
+  Console.WriteLine("Good morning.");
+} 
+else if (time < 20) 
+{
+  Console.WriteLine("Good day.");
+} 
+else 
+{
+  Console.WriteLine("Good evening.");
 }
 "#;
 
-        let _ = CSharpSession::parse(Rule::program, input).unwrap();
-    }
-
-    #[test]
-    fn command() {
-        let input = r#"
-Get-Process | Where-Object { $_.CPU -gt 100 }
-"#;
-
-        let _ = CSharpSession::parse(Rule::program, input).unwrap();
+        let _ = CSharpSession::parse(Rule::statements, input).unwrap();
     }
 
     #[test]
     fn range() {
         let input = r#"
-$numbers = 1..5
+string s = "abcdef";
+string part = s[1..4];   // "bcd"
 "#;
 
-        let _ = CSharpSession::parse(Rule::program, input).unwrap();
+        let _ = CSharpSession::parse(Rule::statements, input).unwrap();
     }
 
     #[test]
     fn literals() {
         let input = r#"
-$hex = 0xFF
-
-$name = "Alice"
-$msg = "Hello, $name. Today is $day."
-$escaped = "She said: `"Hi`""
-$literal = 'Hello, $name'
+int myNum = 5;               // Integer (whole number)
+double myDoubleNum = 5.99D;  // Floating point number
+char myLetter = 'D';         // Character
+bool myBool = true;          // Boolean
+string myText = "Hello";     // String
 "#;
 
-        let _ = CSharpSession::parse(Rule::program, input).unwrap();
-    }
-
-    #[test]
-    fn floats() {
-        let input = r#"
-    $pi = 3.1415
-$half = .5
-"#;
-
-        let _ = CSharpSession::parse(Rule::program, input).unwrap();
+        let _ = CSharpSession::parse(Rule::statements, input).unwrap();
     }
 
     #[test]
     fn arrays() {
         let input = r#"
-$a = 1, 2, 3
-$b = @("one", "two", "three")
-$c = @(1, 2, @(3, 4))
+string[] cars = {"Volvo", "BMW", "Ford", "Mazda"};
+Console.WriteLine(cars[0]);
 "#;
 
-        let _ = CSharpSession::parse(Rule::program, input).unwrap();
-    }
-
-    #[test]
-    fn static_method_call() {
-        let input = r#"
-[Threading.Thread]::Sleep(399)
-"#;
-
-        let _ = CSharpSession::parse(Rule::program, input).unwrap();
-    }
-
-    #[test]
-    fn neg_pipeline() {
-        let input = r#"
--not $input | Where-Object { $_ -gt 5 }
-"#;
-
-        let _ = CSharpSession::parse(Rule::program, input).unwrap();
-    }
-
-    #[test]
-    fn amsi_fail() {
-        let input = r#"
-#Matt Graebers second Reflection method 
-$VMRviwsbtehQfPtxbt=$null;
-$ilryNQSTt="System.$([cHAR]([ByTE]0x4d)+[ChAR]([byte]0x61)+[chAr](110)+[cHar]([byTE]0x61)+[cHaR](103)+[cHar](101*64/64)+[chaR]([byTE]0x6d)+[cHAr](101)+[CHAr]([byTE]0x6e)+[Char](116*103/103)).$([Char]([ByTe]0x41)+[Char](117+70-70)+[CHAr]([ByTE]0x74)+[CHar]([bYte]0x6f)+[CHar]([bytE]0x6d)+[ChaR]([ByTe]0x61)+[CHar]([bYte]0x74)+[CHAR]([byte]0x69)+[Char](111*26/26)+[chAr]([BYTe]0x6e)).$(('Âmsí'+'Ùtìl'+'s').NORmalizE([ChAR](44+26)+[chAR](111*9/9)+[cHar](82+32)+[ChaR](109*34/34)+[cHaR](68+24-24)) -replace [ChAr](92)+[CHaR]([BYTe]0x70)+[Char]([BytE]0x7b)+[CHaR]([BYTe]0x4d)+[chAR](110)+[ChAr](15+110))"
-
-"#;
-
-        let _ = CSharpSession::parse(Rule::program, input).unwrap();
+        let _ = CSharpSession::parse(Rule::statements, input).unwrap();
     }
 }
