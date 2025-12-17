@@ -54,7 +54,7 @@ impl ArithmeticPred {
 
 #[cfg(test)]
 mod tests {
-    use crate::{NEWLINE, CSharpSession, Variables};
+    use crate::{CSharpSession, NEWLINE, Variables};
 
     #[test]
     fn test_add() {
@@ -125,15 +125,11 @@ mod tests {
             " 8  8 ".to_string()
         );
         assert_eq!(
-            CSharpSession::new()
-                .safe_eval(r#" " 8a "* 2 "#)
-                .unwrap(),
+            CSharpSession::new().safe_eval(r#" " 8a "* 2 "#).unwrap(),
             " 8a  8a ".to_string()
         );
         assert_eq!(
-            CSharpSession::new()
-                .safe_eval(r#" " 8a "* " 2" "#)
-                .unwrap(),
+            CSharpSession::new().safe_eval(r#" " 8a "* " 2" "#).unwrap(),
             " 8a  8a ".to_string()
         );
         assert_eq!(
@@ -166,21 +162,15 @@ mod tests {
             "4".to_string()
         );
         assert_eq!(
-            CSharpSession::new()
-                .safe_eval(r#" " 8a "/ 2 "#)
-                .unwrap(),
+            CSharpSession::new().safe_eval(r#" " 8a "/ 2 "#).unwrap(),
             "".to_string()
         );
         assert_eq!(
-            CSharpSession::new()
-                .safe_eval(r#" " 8a "/ " 2" "#)
-                .unwrap(),
+            CSharpSession::new().safe_eval(r#" " 8a "/ " 2" "#).unwrap(),
             "".to_string()
         );
         assert_eq!(
-            CSharpSession::new()
-                .safe_eval(r#" " 8 "/ " 2a" "#)
-                .unwrap(),
+            CSharpSession::new().safe_eval(r#" " 8 "/ " 2a" "#).unwrap(),
             "".to_string()
         );
         assert_eq!(
@@ -209,27 +199,19 @@ mod tests {
         //assert_eq!(PowerShellParser::new().safe_eval(r#" " 8 "% 0.3
         // "#).unwrap(), "0.2".to_string());
         assert_eq!(
-            CSharpSession::new()
-                .safe_eval(r#" " 8 "% 0.3 "#)
-                .unwrap(),
+            CSharpSession::new().safe_eval(r#" " 8 "% 0.3 "#).unwrap(),
             "0.2000000000000003".to_string()
         );
         assert_eq!(
-            CSharpSession::new()
-                .safe_eval(r#" " 8a "% 0.2 "#)
-                .unwrap(),
+            CSharpSession::new().safe_eval(r#" " 8a "% 0.2 "#).unwrap(),
             "".to_string()
         );
         assert_eq!(
-            CSharpSession::new()
-                .safe_eval(r#" " 8a "% " 2" "#)
-                .unwrap(),
+            CSharpSession::new().safe_eval(r#" " 8a "% " 2" "#).unwrap(),
             "".to_string()
         );
         assert_eq!(
-            CSharpSession::new()
-                .safe_eval(r#" " 8 "% " 2a" "#)
-                .unwrap(),
+            CSharpSession::new().safe_eval(r#" " 8 "% " 2a" "#).unwrap(),
             "".to_string()
         );
         assert_eq!(
@@ -251,9 +233,7 @@ mod tests {
             "70"
         );
         assert_eq!(
-            CSharpSession::new()
-                .safe_eval("[lonG](97 + 3)")
-                .unwrap(),
+            CSharpSession::new().safe_eval("[lonG](97 + 3)").unwrap(),
             "100".to_string()
         );
         assert_eq!(
@@ -263,9 +243,7 @@ mod tests {
             "100.1".to_string()
         );
         assert_eq!(
-            CSharpSession::new()
-                .safe_eval("[char](97 + 1)")
-                .unwrap(),
+            CSharpSession::new().safe_eval("[char](97 + 1)").unwrap(),
             "b".to_string()
         );
         assert_eq!(

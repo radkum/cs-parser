@@ -4,15 +4,15 @@ use super::Variables;
 use crate::parser::{
     ScriptBlock,
     command::{CallablePredType, CommandOutput},
+    value::Val,
 };
 
 pub(crate) type FunctionMap = HashMap<String, ScriptBlock>;
-use crate::parser::CommandElem;
 impl Variables {
     pub(crate) fn get_function(
         &mut self,
         name: &str,
-    ) -> Option<CallablePredType<CommandElem, CommandOutput>> {
+    ) -> Option<CallablePredType<Val, CommandOutput>> {
         if let Some(fun) = self.script_functions.get(name).cloned() {
             Self::get_function_from_script_block(fun)
         } else if let Some(fun) = self.global_functions.get(name).cloned() {
@@ -24,7 +24,7 @@ impl Variables {
 
     pub(super) fn get_function_from_script_block(
         sb: ScriptBlock,
-    ) -> Option<CallablePredType<CommandElem, CommandOutput>> {
+    ) -> Option<CallablePredType<Val, CommandOutput>> {
         let fun = move |params, ps: &mut crate::CSharpSession| {
             let sb = sb.clone();
             sb.run(params, ps, None)

@@ -163,7 +163,7 @@ pub fn csplit(input: Val, args: Val) -> Val {
 
 #[cfg(test)]
 mod tests {
-    use crate::{NEWLINE, CSharpSession, Variables};
+    use crate::{CSharpSession, NEWLINE, Variables};
 
     #[test]
     fn test_split_empty_input() {

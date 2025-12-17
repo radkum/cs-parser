@@ -28,11 +28,11 @@ impl RuntimeObjectTrait for ScriptBlock {
 }
 
 impl ScriptBlock {
-    pub fn new(params: Vec<Param>, script: String, raw_text: String) -> Self {
+    pub fn new(script: String, raw_text: String) -> Self {
         Self {
-            params: Params::new(params),
-            body: script,
-            raw_text,
+            params: Params::new(Vec::new()),
+            body: script.clone(),
+            raw_text: script,
             deobfuscated: Vec::new(),
         }
     }
@@ -96,7 +96,7 @@ impl ScriptBlock {
 
     pub fn run_mut(
         &mut self,
-        command_args: Vec<CommandElem>,
+        args: Vec<Val>,
         ps: &mut CSharpSession,
         ps_item: Option<Val>,
     ) -> ParserResult<CommandOutput> {
@@ -107,17 +107,6 @@ impl ScriptBlock {
             ps.variables.set_ps_item(item.clone());
         }
 
-        let args = command_args
-            .iter()
-            .filter_map(|arg| {
-                if let CommandElem::Argument(val) = arg {
-                    Some(val.clone())
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<Val>>();
-
         for (i, param) in self.params.0.iter().enumerate() {
             let val = args
                 .get(i)
@@ -126,38 +115,6 @@ impl ScriptBlock {
             ps.variables
                 .set_local(param.name(), val)
                 .map_err(ParserError::from)?;
-        }
-
-        //first we need match "switch" parameters
-        for param in self.params.0.iter() {
-            for (i, arg) in command_args.iter().enumerate() {
-                if *arg == CommandElem::Parameter(param.command_param()) {
-                    //scpecial handle for switch parameters
-                    if param.ttype() == Some(ValType::Switch) {
-                        ps.variables
-                            .set_local(param.name(), Val::Bool(true))
-                            .map_err(ParserError::from)?;
-                        //args.remove(i);
-                    } else {
-                        let next_arg =
-                            if let Some(CommandElem::Argument(val)) = command_args.get(i + 1) {
-                                let v = val.clone();
-                                v.cast_from_type(&param.ttype().unwrap_or(ValType::String))
-                                    .unwrap_or(Val::Null)
-                            } else {
-                                Val::Null
-                            };
-
-                        ps.variables
-                            .set_local(param.name(), next_arg)
-                            .map_err(ParserError::from)?;
-                        //args.remove(i+1);
-                        //args.remove(i);
-                    }
-
-                    break;
-                }
-            }
         }
 
         let (
@@ -176,7 +133,7 @@ impl ScriptBlock {
 
     pub fn run(
         &self,
-        args: Vec<CommandElem>,
+        args: Vec<Val>,
         ps: &mut CSharpSession,
         ps_item: Option<Val>,
     ) -> ParserResult<CommandOutput> {
@@ -252,7 +209,7 @@ impl ScriptBlock {
 
 #[cfg(test)]
 mod tests {
-    use crate::{NEWLINE, CSharpSession};
+    use crate::{CSharpSession, NEWLINE};
 
     #[test]
     fn simple() {

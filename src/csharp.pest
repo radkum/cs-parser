@@ -6,8 +6,8 @@ WHITESPACE     = _{ " " | "\t" | line_continuation | NEWLINE }
 
 program = { SOI ~ using_statement* ~ ( namespace | class_statement )+ ~ EOI }
 
-namespace = { "namespace" ~ var_name ~ statement_block }
-using_statement = { "using" ~  using_member_access ~ ";"* }
+namespace = { "namespace" ~ var_name ~ statements_block }
+using_statement = { "using" ~  member_chain ~ ";"* }
 
 
 static_const_attribute = { "static" | "const" }
@@ -31,14 +31,12 @@ fn_parameter = { attribute_list? ~ "ref"? ~ "out"? ~ type_literal ~ variable ~ f
 fn_parameter_default = { "=" ~ primary_expression }
 
 named_blocks = { named_block+ }
-named_block = { block_name ~ statement_block }
+named_block = { block_name ~ statements_block }
 block_name = { ^"dynamicparam" | ^"begin" | ^"process" | ^"end" }
-statement_block = { "{" ~ statements? ~ "}" }
+statements_block = { "{" ~ statement* ~ "}" }
 
 //------------------------------------- STATEMENTS
-statements = _{ statement+ }
-
-statement = { 
+statement = _{ 
 	if_statement 
     | labeled_statement
     | function_statement
@@ -46,27 +44,22 @@ statement = {
     | class_statement
     | enum_statement
     | flow_control_statement
-    | trap_statement
     | try_statement
-    | data_statement
-    | inlinescript_statement
-    | parallel_statement
-    | sequence_statement
-    | statement_terminator
     | code_line
+    | statement_terminator
 }
 statement_terminator = { (";" | NEWLINE)+ }
 
 if_statement = {
-    ^"if" ~ "(" ~ expression ~ ")"  ~ (statement_block | statement) ~ elseif_clauses? ~ else_condition?
+    ^"if" ~ "(" ~ expression ~ ")"  ~ (statements_block | statement) ~ elseif_clauses? ~ else_condition?
 }
 elseif_clauses = {else_if+}
-else_if = { ^"elseif" ~ "(" ~ expression ~ ")" ~ statement_block }
-else_condition = { ^"else" ~ statement_block }
+else_if = { ^"elseif" ~ "(" ~ expression ~ ")" ~ statements_block }
+else_condition = { ^"else" ~ statements_block }
 
 //------------------------------- LABELED STATEMENTS
 label = @{ ":" ~ ASCII_ALPHANUMERIC* }
-labeled_statement = _{ label? ~ (
+labeled_statement = { label? ~ (
     switch_statement 
     | foreach_statement 
     | for_statement 
@@ -78,25 +71,22 @@ label_exp = { label | unary_exp }
 switch_statement = { ^"switch" ~ switch_condition ~ switch_body }
 switch_condition = { "(" ~ expression ~ ")" }
 switch_filename = { command_token | primary_expression }
-switch_body = { "{" ~ switch_clauses? ~ "}" }
-switch_clauses = { switch_clause+ }
-switch_clause = { switch_clause_condition ~ ":" ~ (!"break" ~ (if_statement | code_line))* ~ "break;"? }
+switch_body = { "{" ~ switch_clause* ~ "}" }
+switch_clause = { switch_clause_condition ~ ":" ~ (!"break" ~ (statement))* ~ "break;"? }
 switch_clause_condition = { "case" ~ primary_expression }
 
 
-foreach_statement = { ^"foreach" ~ foreach_parameter? ~ "(" ~ type_literal? ~ variable ~ "in" ~ expression ~ ")" ~ statement_block }
+foreach_statement = { foreach_header ~ statements_block }
+foreach_header = { "foreach" ~ foreach_parameter? ~ "(" ~ type_literal? ~ variable ~ "in" ~ expression ~ ")"}
 foreach_parameter = { ^"-parallel" }
 
-while_statement = { ^"while" ~ "(" ~ while_condition ~ ")" ~ statement_block }
-while_condition = { expression }
-do_statement = { ^"do" ~ statement_block ~ ( ^"while" | ^"until" ) ~ "(" ~ while_condition ~ ")"}
+while_statement = { while_header ~ statements_block }
+while_header = { "while" ~ "(" ~ expression ~ ")" }
 
-for_statement = {
-    ^"for" ~ "(" ~
-        for_initializer_block? ~
-        ")" ~
-        statement_block
-}
+do_statement = { ^"do" ~ statements_block ~ ( ^"while" | ^"until" ) ~ "(" ~ expression ~ ")"}
+
+for_statement = { for_header ~ statements_block }
+for_header = {"for" ~ "(" ~ for_initializer_block? ~ ")" }
 for_initializer_block = {
     for_initializer? ~ statement_terminator ~
     for_condition?   ~ statement_terminator ~
@@ -109,10 +99,10 @@ for_iterator    = { expression }
 //---------------------------------- OTHER STATEMENTS
 return_type = {type_literal}
 function_statement = {
-    function_header ~ statement_block
+    function_header ~ statements_block
 }
 function_declaration = {function_header ~ ";"*}
-function_header = { attribute_list? ~ access_modifier? ~ function_attribute* ~ return_type ~ function_name ~ function_parameter_declaration }
+function_header = { function_header_prefix ~ return_type ~ function_name ~ function_parameter_declaration }
 function_keyword = { ^"function" | ^"filter" | ^"workflow" }
 function_name = @{ generic_token }
 function_parameter_declaration = _{ "(" ~ parameter_list? ~ ")" }
@@ -122,58 +112,48 @@ flow_control_statement = {
   | flow_control_expression_statement
 }
 flow_control_label_statement = { break_statement | continue_statement }
-break_statement = { ^"break" ~ label_exp? }
-continue_statement = { ^"continue" ~ label_exp? }
+break_statement = { "break" ~ label_exp? }
+continue_statement = { "continue" ~ label_exp? }
 
 flow_control_expression_statement = { throw_statement | return_statement | exit_statement }
-throw_statement = { ^"throw" ~ expression?}
-return_statement = { ^"return" ~ expression?}
-exit_statement = { ^"exit" ~ expression?}
-
-trap_statement = { ^"trap" ~ cast_literal? ~ statement_block}
-
-inlinescript_statement = { ^"inlinescript" ~ statement_block}
-
-parallel_statement = { ^"parallel" ~ statement_block }
-
-sequence_statement = { ^"sequence" ~ statement_block }
+throw_statement = { "throw" ~ expression?}
+return_statement = { "return" ~ expression?}
+exit_statement = { "exit" ~ expression?}
 
 //--------------------------------- TRY CATCH
-try_statement = { "try" ~ statement_block ~ (catch_clauses ~ finally_clause? | finally_clause?) }
+try_statement = { "try" ~ statements_block ~ (catch_clauses ~ finally_clause? | finally_clause?) }
 catch_clauses = { catch_clause+ }
-catch_clause = { "catch" ~ catch_type_list? ~ statement_block }
+catch_clause = { "catch" ~ catch_type_list? ~ statements_block }
 catch_type_list = { "(" ~ field_declaration ~ ")" }
-finally_clause = { ^"finally" ~ statement_block }
-
-//----------------------------------- DATA STATEMENTS
-data_statement = { ^"data" ~ simple_name? ~ data_commands_allowed? ~ statement_block }
-data_commands_allowed = { ^"-supportedcommand" ~ data_commands_list }
-data_commands_list = { data_command ~ ("," ~ data_command)* }
-data_command = { invocation_command_exp }
+finally_clause = { "finally" ~ statements_block }
 
 //--------------------------------- CLASS STATEMENTS
 function_attribute = { "static" | "hidden" | "virtual" | "override" | "extern" | "readonly" }
-class_property_definition = {
+function_attributes = { function_attribute+ }
+function_header_prefix = {
     attribute_list? ~
     access_modifier? ~
-    function_attribute* ~
+    function_attributes? 
+}
+    
+class_property_definition = {
+    function_header_prefix ~
     type_literal? ~
     variable ~
     ("=" ~ expression)?
-
 }
 
 inheritance = { ":" ~ simple_name ~ ("," ~ simple_name)* }
 
 class_statement = {
-   attribute_list? ~ access_modifier? ~ function_attribute* ~ 
+   function_header_prefix ~ 
    ("class" | "struct") ~ simple_name ~ inheritance? 
-   ~ statement_block
+   ~ (function_statement | field_declaration | field_initialization)*
 }
 
 access_modifier = { new_keyword? ~ ("public" | "private" | "protected" | "internal") }
 // -----------------------ENUM
-enum_statement = { attribute_list? ~ access_modifier? ~ "enum" ~ simple_name ~ inheritance? ~ "{" ~ assignment_exp ~("," ~ assignment_exp)* ~ "}" }
+enum_statement = { function_header_prefix  ~ "enum" ~ simple_name ~ inheritance? ~ "{" ~ assignment_exp ~("," ~ assignment_exp)* ~ "}" }
 enum_member = { simple_name ~ (("=" ~ decimal_integer) | ("=" ~ hex_integer) )? }
 
 // ---------------------- EXPRESSION
@@ -256,7 +236,7 @@ bracket_arg_list = { "[" ~ argument_list? ~ "]" }
 
 // --------------- EXPRESSION
 assignable_variable = { variable_access | value_access | variable}
-using_member_access = { member_name ~ member_access*}
+member_chain = @{ member_name ~ member_access*}
 variable_access = { variable ~ 
     (
         member_access
@@ -343,19 +323,16 @@ simple_operator = _{ "-" | "+" | "*" | "/" | "%" }
 value = {
     parenthesized_expression
     | sub_expression 
-    | array_expression 
     | hash_literal_expression 
     | literal 
-    | cast_literal
     | variable
 }
 parenthesized_expression = !{ "(" ~ expression ~ ")"}
 sub_expression = !{ "$(" ~ expression? ~ ")" }
-array_expression = !{ "@(" ~ statements? ~ ")" }
 
 hash_literal_expression = { "@{" ~ hash_literal_body? ~ "}" }
 hash_literal_body = _{ hash_entry* }
-hash_entry = { key_expression ~ "=" ~ (cast_literal | statement) ~ ";"*}
+hash_entry = { key_expression ~ "=" ~ statement ~ ";"*}
 
 list_entry = { key_expression ~ "=" ~ expression }
 initializer_list = { "{" ~ list_entry ~ ("," ~ list_entry)* ~ "}" }
@@ -470,7 +447,7 @@ decimal_int = @{ ASCII_DIGIT ~ ("_" | ASCII_DIGIT)* ~ !"_" }
 hex_int = @{ HEX_DIGIT ~ ("_" | HEX_DIGIT)* ~ !"_" }
 bin_int = @{ BIN_DIGIT ~ ("_" | BIN_DIGIT)* ~ !"_" }
 BIN_DIGIT = @{"0" | "1"}
-decimal_integer = { decimal_int }
+decimal_integer = _{ decimal_int }
 hex_integer = { ^"0x" ~ hex_int}
 binary_integer = { ^"0b" ~ bin_int }
 float = {float_1 | float_2 | float_3}
@@ -482,20 +459,20 @@ float_mantis = {^"e" ~ ("+" | "-") ~ ASCII_DIGIT+}
 
 //----------------------TYPE LITERAL
 cast_literal = { "(" ~ type_literal ~ ")" }
-type_name = { type_identifier ~ ("." ~ type_identifier)* }
+type_name = @{ type_identifier ~ ("." ~ type_identifier)* }
 type_identifier = @{ (ASCII_ALPHANUMERIC | "_")+ }
-type_literal = @{ dimension |
-      (type_name ~ generic_type? ~ dimension*)
+type_literal = @{ dimensions |
+      (type_name ~ generic_type? ~ dimensions?)
 }
+dimensions = { dimension+ }
 type_literals = { type_literal ~ (BREAK* ~ "," ~ BREAK* ~ type_literal)* }
 generic_type = { "<" ~ type_literals ~ ">" }
-dimension = { "[" ~ decimal_int? ~ "]" }
+dimension = { "[" ~ decimal_integer? ~ "]" }
 
 //-----------------------ATTRIBUTES
 attribute_list       = { attribute+ }
-attribute            = { attribute_info | cast_literal }
-attribute_info       = {"[" ~ attribute_name ~ ("(" ~ attribute_arguments? ~ ")")? ~ "]"}
-attribute_name       = { type_literal }
+attribute            = { "[" ~ attribute_name ~ ("(" ~ attribute_arguments? ~ ")")? ~ "]"}
+attribute_name       = { member_chain }
 attribute_arguments  = { attribute_argument ~ ("," ~ attribute_argument)* }
 attribute_argument   = { (expression ~ ("=" ~ expression)?) }
 

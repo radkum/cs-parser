@@ -69,7 +69,7 @@ pub enum CommandInner {
 #[derive(Debug)]
 pub struct Command {
     command_inner: CommandInner,
-    args: Vec<CommandElem>,
+    args: Vec<Val>,
     scope: SessionScope,
 }
 
@@ -102,7 +102,7 @@ impl Command {
         self.scope = scope;
     }
 
-    pub(crate) fn with_args(&mut self, args: Vec<CommandElem>) {
+    pub(crate) fn with_args(&mut self, args: Vec<Val>) {
         self.args.extend(args);
     }
 
@@ -141,20 +141,20 @@ impl std::fmt::Display for Command {
 }
 
 pub(crate) type FunctionPredType =
-    fn(&mut Vec<CommandElem>, &mut CSharpSession) -> ParserResult<CommandOutput>;
+    fn(&mut Vec<Val>, &mut CSharpSession) -> ParserResult<CommandOutput>;
 
 impl Command {
     const COMMAND_MAP: LazyLock<HashMap<&'static str, FunctionPredType>> = LazyLock::new(|| {
         HashMap::from([
-            ("write-output", write_output as FunctionPredType),
-            ("write-warning", write_warning as FunctionPredType),
-            ("write-host", write_host as FunctionPredType),
-            ("write-error", write_error as FunctionPredType),
-            ("write-verbose", write_verbose as FunctionPredType),
-            ("where-object", where_object as FunctionPredType),
-            ("get-location", get_location as FunctionPredType),
-            ("powershell", powershell as FunctionPredType),
-            ("foreach-object", foreach_object as FunctionPredType),
+            // ("write-output", write_output as FunctionPredType),
+            // ("write-warning", write_warning as FunctionPredType),
+            // ("write-host", write_host as FunctionPredType),
+            // ("write-error", write_error as FunctionPredType),
+            // ("write-verbose", write_verbose as FunctionPredType),
+            // ("where-object", where_object as FunctionPredType),
+            // ("get-location", get_location as FunctionPredType),
+            // ("powershell", powershell as FunctionPredType),
+            // ("foreach-object", foreach_object as FunctionPredType),
         ])
     });
 
@@ -370,10 +370,7 @@ fn extract_message(args: &[CommandElem]) -> String {
     output.join(" ")
 }
 // Write-Host cmdlet implementation (goes directly to console, not capturable)
-fn write_host(
-    args: &mut Vec<CommandElem>,
-    ps: &mut CSharpSession,
-) -> ParserResult<CommandOutput> {
+fn write_host(args: &mut Vec<CommandElem>, ps: &mut CSharpSession) -> ParserResult<CommandOutput> {
     let message = extract_message(args);
     let deobfuscated = format!(
         "Write-Host {}",
@@ -390,10 +387,7 @@ fn write_host(
     })
 }
 // Write-Output cmdlet implementation
-fn write_output(
-    args: &mut Vec<CommandElem>,
-    _: &mut CSharpSession,
-) -> ParserResult<CommandOutput> {
+fn write_output(args: &mut Vec<CommandElem>, _: &mut CSharpSession) -> ParserResult<CommandOutput> {
     let message = extract_message(args);
     let deobfuscated = format!(
         "Write-Output {}",
@@ -430,10 +424,7 @@ fn write_warning(
 }
 
 // Write-Error cmdlet implementation
-fn write_error(
-    args: &mut Vec<CommandElem>,
-    _: &mut CSharpSession,
-) -> ParserResult<CommandOutput> {
+fn write_error(args: &mut Vec<CommandElem>, _: &mut CSharpSession) -> ParserResult<CommandOutput> {
     let message = extract_message(args);
     let deobfuscated = format!(
         "Write-Error {}",
@@ -470,10 +461,7 @@ fn write_verbose(
 
 // Powershell cmdlet implementation. It don't actually invoke a new PowerShell
 // process, only deobfuscates the command.
-fn powershell(
-    args: &mut Vec<CommandElem>,
-    ps: &mut CSharpSession,
-) -> ParserResult<CommandOutput> {
+fn powershell(args: &mut Vec<CommandElem>, ps: &mut CSharpSession) -> ParserResult<CommandOutput> {
     fn deobfuscate_command(args: &mut Vec<CommandElem>, ps: &mut CSharpSession) {
         use base64::prelude::*;
         let mut index_to_decode = vec![];
@@ -522,7 +510,7 @@ fn powershell(
 
 #[cfg(test)]
 mod tests {
-    use crate::{NEWLINE, CSharpSession, PsValue, Variables};
+    use crate::{CSharpSession, NEWLINE, PsValue, Variables};
 
     #[test]
     fn test_where_object() {

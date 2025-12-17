@@ -42,7 +42,7 @@ impl MethodToken {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct CommandToken {
+pub struct FunctionToken {
     token: String,
     name: String,
     arguments: Vec<String>,
@@ -52,7 +52,7 @@ pub struct CommandToken {
 ///
 /// Stores the original token string, the command name, and its arguments as
 /// strings. Useful for identifying and reconstructing command invocations.
-impl CommandToken {
+impl FunctionToken {
     pub fn new(token: String, name: String, arguments: Vec<String>) -> Self {
         Self {
             token,
@@ -71,6 +71,39 @@ impl CommandToken {
 
     pub fn args(&self) -> &Vec<String> {
         &self.arguments
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FunctionDeclarationToken {
+    token: String,
+    name: String,
+    params: Vec<String>,
+}
+
+/// Represents a parsed PowerShell command token.
+///
+/// Stores the original token string, the command name, and its arguments as
+/// strings. Useful for identifying and reconstructing command invocations.
+impl FunctionDeclarationToken {
+    pub fn new(token: String, name: String, params: Vec<String>) -> Self {
+        Self {
+            token,
+            name,
+            params,
+        }
+    }
+
+    pub fn token(&self) -> &String {
+        &self.token
+    }
+
+    pub fn name(&self) -> &String {
+        &self.name
+    }
+
+    pub fn params(&self) -> &Vec<String> {
+        &self.params
     }
 }
 
@@ -114,13 +147,31 @@ impl StringExpandableToken {
     }
 }
 
+/// Represents a parsed PowerShell expression token.
+///
+/// Stores the original token string and its evaluated value as `PsValue`.
+/// Useful for deobfuscation and analysis of expressions.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AttributeToken {
+    token: String,
+    args: Vec<(String, PsValue)>,
+}
+
+impl AttributeToken {
+    pub fn new(token: String, args: Vec<(String, PsValue)>) -> Self {
+        Self { token, args }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     StringExpandable(StringExpandableToken),
     String(String),
     Expression(ExpressionToken),
     Method(MethodToken),
-    Command(CommandToken),
+    Function(FunctionToken),
+    FunctionDeclaration(FunctionDeclarationToken),
+    Attribute(AttributeToken),
 }
 impl Token {
     pub fn method(token: String, self_: PsValue, name: String, arguments: Vec<PsValue>) -> Self {
@@ -132,11 +183,19 @@ impl Token {
         })
     }
 
-    pub fn command(token: String, name: String, arguments: Vec<String>) -> Self {
-        Token::Command(CommandToken {
+    pub fn function(token: String, name: String, arguments: Vec<String>) -> Self {
+        Token::Function(FunctionToken {
             token,
             name,
             arguments,
+        })
+    }
+
+    pub fn function_declaration(token: String, name: String, params: Vec<String>) -> Self {
+        Token::FunctionDeclaration(FunctionDeclarationToken {
+            token,
+            name,
+            params,
         })
     }
 
@@ -146,6 +205,10 @@ impl Token {
 
     pub fn string_expandable(token: String, value: String) -> Self {
         Token::StringExpandable(StringExpandableToken { token, value })
+    }
+
+    pub fn attribute(token: String, args: Vec<(String, PsValue)>) -> Self {
+        Token::Attribute(AttributeToken { token, args })
     }
 }
 impl Display for Token {
@@ -243,11 +306,31 @@ impl Tokens {
             .collect()
     }
 
-    pub fn commands(&self) -> Vec<CommandToken> {
+    pub fn functions(&self) -> Vec<FunctionToken> {
         self.0
             .iter()
             .filter_map(|token| match token {
-                Token::Command(command) => Some(command.clone()),
+                Token::Function(command) => Some(command.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    pub fn function_declarations(&self) -> Vec<FunctionDeclarationToken> {
+        self.0
+            .iter()
+            .filter_map(|token| match token {
+                Token::FunctionDeclaration(command) => Some(command.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    pub fn attributes(&self) -> Vec<AttributeToken> {
+        self.0
+            .iter()
+            .filter_map(|token| match token {
+                Token::Attribute(attr) => Some(attr.clone()),
                 _ => None,
             })
             .collect()

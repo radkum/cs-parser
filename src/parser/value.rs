@@ -11,6 +11,8 @@ use std::{
     fmt::Debug,
     ops::Neg,
 };
+
+pub(super) use params::FunctionHeader;
 mod class;
 mod val_type;
 pub(super) use class::{ClassProperties, ClassType, MethodName};

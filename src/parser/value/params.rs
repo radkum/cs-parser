@@ -4,12 +4,12 @@ use crate::parser::{Val, ValType};
 #[derive(Debug, Clone, PartialEq)]
 pub struct Param {
     name: String,
-    ttype: Option<ValType>,
+    ttype: ValType,
     default_value: Option<Val>,
 }
 
 impl Param {
-    pub fn new(ttype: Option<ValType>, name: String, default_value: Option<Val>) -> Self {
+    pub fn new(ttype: ValType, name: String, default_value: Option<Val>) -> Self {
         Self {
             name,
             ttype,
@@ -25,7 +25,7 @@ impl Param {
         format!("-{}", self.name)
     }
 
-    pub fn ttype(&self) -> Option<ValType> {
+    pub fn ttype(&self) -> ValType {
         self.ttype.clone()
     }
 
@@ -36,11 +36,7 @@ impl Param {
 
 impl std::fmt::Display for Param {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let ttype = if let Some(ttype) = &self.ttype {
-            format!("[{}] ", ttype.name())
-        } else {
-            "".to_string()
-        };
+        let ttype = format!("[{}] ", self.ttype.name());
 
         let default = if let Some(default) = &self.default_value {
             format!(" = {}", default)
@@ -49,6 +45,37 @@ impl std::fmt::Display for Param {
         };
 
         write!(f, "{ttype}${}{default}", self.name)
+    }
+}
+
+pub struct FunctionHeader {
+    name: String,
+    params: Vec<Param>,
+}
+
+impl FunctionHeader {
+    pub fn new(name: String, params: Vec<Param>) -> Self {
+        Self { name, params }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn params(&self) -> &Vec<Param> {
+        &self.params
+    }
+}
+
+impl std::fmt::Display for FunctionHeader {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let params_str = self
+            .params
+            .iter()
+            .map(|p| p.to_string())
+            .collect::<Vec<String>>()
+            .join(", ");
+        write!(f, "void {}({});", self.name, params_str)
     }
 }
 

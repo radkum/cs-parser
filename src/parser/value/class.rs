@@ -242,10 +242,8 @@ impl MethodName {
         let mangled = if parameters.is_empty() {
             None
         } else {
-            let param_types: Vec<String> = parameters
-                .iter()
-                .filter_map(|p| p.ttype().map(|t| t.to_string()))
-                .collect();
+            let param_types: Vec<String> =
+                parameters.iter().map(|p| p.ttype().to_string()).collect();
             Some(Self::mangle(name, param_types))
         };
 

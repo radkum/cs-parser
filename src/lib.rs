@@ -27,7 +27,6 @@
 //! ```
 
 mod parser;
-pub(crate) use parser::NEWLINE;
 /// Represents a CSharp parsing and evaluation session.
 ///
 /// This is the main entry point for parsing and evaluating CSharp scripts.
@@ -51,6 +50,7 @@ pub(crate) use parser::NEWLINE;
 /// println!("Result: {:?}", script_result.result());
 /// ```
 pub use parser::CSharpSession;
+pub(crate) use parser::NEWLINE;
 /// Represents a CSharp value that can be stored and manipulated.
 ///
 /// This enum covers all the basic CSharp data types including primitives,
@@ -93,10 +93,10 @@ pub use parser::ScriptResult;
 /// for syntax analysis, deobfuscation, and code transformation.
 ///
 /// Right now 4 token types are supported:
-/// - **String**: Representation of single quoted CSharp strings (e.g.,
-///   `'hello world'`)
-/// - **StringExpandable**: Representation of double quoted CSharp strings
-///   with variable expansion (e.g., `"Hello $name"`)
+/// - **String**: Representation of single quoted CSharp strings (e.g., `'hello
+///   world'`)
+/// - **StringExpandable**: Representation of double quoted CSharp strings with
+///   variable expansion (e.g., `"Hello $name"`)
 /// - **Expression**: Parsed CSharp expressions with their evaluated results
 ///   (e.g., `$a + $b`)
 /// - **Function**: CSharp function definitions and calls
@@ -144,7 +144,7 @@ pub use parser::Token;
 /// // ... add variables manually
 /// ```
 pub use parser::Variables;
-pub use parser::{CommandToken, ExpressionToken, MethodToken, StringExpandableToken};
+pub use parser::{ExpressionToken, FunctionToken, MethodToken, StringExpandableToken};
 
 #[cfg(test)]
 mod tests {
