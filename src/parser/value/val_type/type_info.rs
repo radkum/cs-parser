@@ -1,5 +1,4 @@
-use super::{RuntimeTypeTrait, ValType};
-use super::Val;
+use super::{RuntimeTypeTrait, Val, ValType};
 use crate::parser::ParserResult;
 
 #[derive(Debug)]
@@ -12,11 +11,7 @@ pub(crate) struct TypeInfo {
 
 impl std::fmt::Display for TypeInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            self.base_type.name()
-        )
+        write!(f, "{}", self.base_type.name())
     }
 }
 

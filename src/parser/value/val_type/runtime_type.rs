@@ -3,8 +3,10 @@ use super::{
     RuntimeResult, Val, ValType,
     type_info::TypeInfo,
 };
-use crate::parser::{MethodName, ParserResult};
-use crate::CSharpSession;
+use crate::{
+    CSharpSession,
+    parser::{MethodName, ParserResult},
+};
 pub(crate) trait RuntimeTypeTrait: std::fmt::Debug + Sync + Send {
     fn describe(&self) -> String {
         format!("{}", self.type_info())

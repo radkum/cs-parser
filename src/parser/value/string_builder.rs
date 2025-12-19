@@ -3,13 +3,13 @@ use super::{
     runtime_object::{MethodCallType, RuntimeError, RuntimeResult},
     val_type::ObjectType,
 };
-use crate::parser::{MethodName, value::PsString};
-use crate::parser::ParserResult;
-use crate::CSharpSession;
+use crate::{
+    CSharpSession,
+    parser::{MethodName, ParserResult, value::PsString},
+};
 
 #[derive(Debug, Clone)]
-pub(crate) struct StringBuilderType {
-}
+pub(crate) struct StringBuilderType {}
 
 impl StringBuilderType {
     pub fn nname() -> String {
@@ -24,21 +24,29 @@ impl RuntimeTypeTrait for StringBuilderType {
                 Val::String(PsString(s)) => {
                     let buffer = s.as_bytes().to_vec();
                     return Ok(Val::RuntimeObject(Box::new(StringBuilder { buffer })));
-                },
+                }
                 Val::Int(size) => {
                     let capacity = *size as usize;
                     let mut buffer = Vec::with_capacity(capacity * 2);
                     buffer.resize(capacity * 2, 0u8);
                     return Ok(Val::RuntimeObject(Box::new(StringBuilder { buffer })));
-                },
+                }
                 _ => {}
             }
         }
-        Err(crate::parser::error::ParserError::NotImplemented(format!("StringBuilder::new for args {:?}", args).into()))
+        Err(crate::parser::error::ParserError::NotImplemented(
+            format!("StringBuilder::new for args {:?}", args).into(),
+        ))
     }
 
-    fn static_method(&self, method_name: MethodName) -> RuntimeResult<super::runtime_object::StaticFnCallType> {
-        log::debug!("get_static_method called with method_name: {}", method_name.name());
+    fn static_method(
+        &self,
+        method_name: MethodName,
+    ) -> RuntimeResult<super::runtime_object::StaticFnCallType> {
+        log::debug!(
+            "get_static_method called with method_name: {}",
+            method_name.name()
+        );
         match method_name.name() {
             //_ => Ok(Box::new(to_string)),
             _ => Err(MethodError::MethodNotFound(method_name.name().to_string()).into()),
@@ -87,7 +95,6 @@ impl RuntimeObjectTrait for StringBuilder {
         Box::new(StringBuilderType {})
     }
 }
-
 
 fn to_string(this: &mut Val, _: Vec<Val>, _: &mut CSharpSession) -> MethodResult<Val> {
     if let Val::RuntimeObject(ro) = this {

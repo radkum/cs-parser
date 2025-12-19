@@ -72,18 +72,18 @@ pub fn join(input: Val, delimeter: Val) -> String {
 //             p.safe_eval_statements(r#" -join @('hello') "#).unwrap(),
 //             "hello".to_string()
 //         );
-//         assert_eq!(p.safe_eval_statements(r#" -join @() "#).unwrap(), "".to_string());
-//         assert_eq!(
-//             p.safe_eval_statements(r#" -join @('-join', @('a','b')) "#).unwrap(),
-//             "-joinSystem.Object[]".to_string()
+//         assert_eq!(p.safe_eval_statements(r#" -join @() "#).unwrap(),
+// "".to_string());         assert_eq!(
+//             p.safe_eval_statements(r#" -join @('-join', @('a','b'))
+// "#).unwrap(),             "-joinSystem.Object[]".to_string()
 //         );
 //         assert_eq!(
 //             p.safe_eval_statements(r#" -join @('abc', 123, $true, $null) "#)
 //                 .unwrap(),
 //             "abc123True".to_string()
 //         );
-//         assert_eq!(p.safe_eval_statements(r#" -join 'abc' "#).unwrap(), "abc".to_string());
-//         assert_eq!(
+//         assert_eq!(p.safe_eval_statements(r#" -join 'abc' "#).unwrap(),
+// "abc".to_string());         assert_eq!(
 //             p.safe_eval_statements(r#" -join '(a,b,c)' "#).unwrap(),
 //             "(a,b,c)".to_string()
 //         );
@@ -92,13 +92,14 @@ pub fn join(input: Val, delimeter: Val) -> String {
 //             "ab".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" @("abc","abc") -join @('a', $null, 'b') "#)
-//                 .unwrap(),
+//             p.safe_eval_statements(r#" @("abc","abc") -join @('a', $null,
+// 'b') "#)                 .unwrap(),
 //             "abca  babc".to_string()
 //         );
-//         assert_eq!(p.safe_eval_statements(r#" -join (1...3) "#).unwrap(), "10".to_string());
-//         assert_eq!(p.safe_eval_statements(r#" -join (1...6) "#).unwrap(), "1".to_string());
-//         assert_eq!(p.safe_eval_statements(r#" -join (1..3) "#).unwrap(), "123".to_string());
+//         assert_eq!(p.safe_eval_statements(r#" -join (1...3) "#).unwrap(),
+// "10".to_string());         assert_eq!(p.safe_eval_statements(r#" -join
+// (1...6) "#).unwrap(), "1".to_string());         assert_eq!(p.
+// safe_eval_statements(r#" -join (1..3) "#).unwrap(), "123".to_string());
 //         assert_eq!(
 //             CSharpSession::new()
 //                 .safe_eval_statements(r#" $arr = @('x','y'); -join $arr "#)

@@ -37,10 +37,12 @@ fn isnot(var: Val, ttype: ValType) -> bool {
 //         );
 
 //         let mut p = CSharpSession::new();
-//         assert_eq!(p.safe_eval_statements(r#" 42 -isnot [asdfas] "#).unwrap(), PsValue::Null);
+//         assert_eq!(p.safe_eval_statements(r#" 42 -isnot [asdfas]
+// "#).unwrap(), PsValue::Null);
 
 //         //assert_eq!(p.errors()[0],
-//         // parser::ParserError::ValError(parser::value::ValError::UnknownType("asdfas".
+//         //
+// parser::ParserError::ValError(parser::value::ValError::UnknownType("asdfas".
 //         // to_string())));
 
 //         let mut p = CSharpSession::new();
@@ -53,12 +55,12 @@ fn isnot(var: Val, ttype: ValType) -> bool {
 //             "True".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" [chAr]42 -is [ChaR] "#).unwrap().to_string(),
-//             "True".to_string()
+//             p.safe_eval_statements(r#" [chAr]42 -is [ChaR]
+// "#).unwrap().to_string(),             "True".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" [chAr]42 -is [string] "#).unwrap().to_string(),
-//             "False".to_string()
+//             p.safe_eval_statements(r#" [chAr]42 -is [string]
+// "#).unwrap().to_string(),             "False".to_string()
 //         );
 //         assert_eq!(
 //             p.safe_eval_statements(r#" ([chAr]42+[char]33) -is [string] "#)
@@ -66,12 +68,12 @@ fn isnot(var: Val, ttype: ValType) -> bool {
 //             "True".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" 55. -is [float] "#).unwrap().to_string(),
-//             "True".to_string()
+//             p.safe_eval_statements(r#" 55. -is [float]
+// "#).unwrap().to_string(),             "True".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" 42 -is [float] "#).unwrap().to_string(),
-//             "False".to_string()
+//             p.safe_eval_statements(r#" 42 -is [float]
+// "#).unwrap().to_string(),             "False".to_string()
 //         );
 //     }
 // }

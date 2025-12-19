@@ -11,9 +11,7 @@ impl LogicalPred {
         LazyLock::new(|| HashMap::from([("-and", and as _), ("-or", or as _), ("-xor", xor as _)]));
 
     pub(crate) fn get(name: &str) -> Option<LogicalPredType> {
-        Self::LOGICAL_PRED_MAP
-            .get(name)
-            .copied()
+        Self::LOGICAL_PRED_MAP.get(name).copied()
     }
 }
 
@@ -54,8 +52,8 @@ pub fn xor(a: Val, b: Val) -> bool {
 //         );
 
 //         assert_eq!(
-//             p.safe_eval_statements(r#" $true -and $false -and $true "#).unwrap(),
-//             "False".to_string()
+//             p.safe_eval_statements(r#" $true -and $false -and $true
+// "#).unwrap(),             "False".to_string()
 //         );
 //     }
 
@@ -80,8 +78,8 @@ pub fn xor(a: Val, b: Val) -> bool {
 //         );
 
 //         assert_eq!(
-//             p.safe_eval_statements(r#" $true -Or $false -or $true "#).unwrap(),
-//             "True".to_string()
+//             p.safe_eval_statements(r#" $true -Or $false -or $true
+// "#).unwrap(),             "True".to_string()
 //         );
 //     }
 
@@ -109,9 +107,10 @@ pub fn xor(a: Val, b: Val) -> bool {
 //     #[test]
 //     fn test_not() {
 //         let mut p = CSharpSession::new();
-//         assert_eq!(p.safe_eval_statements(r#" -Not 4 "#).unwrap(), "False".to_string());
-//         assert_eq!(p.safe_eval_statements(r#" -nOt "" "#).unwrap(), "True".to_string());
-//         assert_eq!(p.safe_eval_statements(r#" -not "asd" "#).unwrap(), "False".to_string());
+//         assert_eq!(p.safe_eval_statements(r#" -Not 4 "#).unwrap(),
+// "False".to_string());         assert_eq!(p.safe_eval_statements(r#" -nOt ""
+// "#).unwrap(), "True".to_string());         assert_eq!(p.
+// safe_eval_statements(r#" -not "asd" "#).unwrap(), "False".to_string());
 //         assert_eq!(
 //             p.safe_eval_statements(r#" -nOt "96.5" "#).unwrap(),
 //             "False".to_string()

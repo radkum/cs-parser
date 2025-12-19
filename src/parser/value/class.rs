@@ -2,14 +2,14 @@ use std::{collections::HashMap, vec};
 
 use super::{RuntimeResult, Val, ValType};
 use crate::parser::{
-    ParserResult, RuntimeObjectTrait, ScriptBlock, value::{
+    ParserResult, RuntimeObjectTrait, ScriptBlock,
+    value::{
         MethodError, MethodResult, RuntimeError, RuntimeTypeTrait, StaticFnCallType,
         val_type::ObjectType,
-    }
+    },
 };
 pub(crate) type MethodMap = HashMap<String, ScriptBlock>;
-use crate::parser::Param;
-use crate::CSharpSession;
+use crate::{CSharpSession, parser::Param};
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct ClassProperties(HashMap<String, (Option<ValType>, Option<Val>)>);
@@ -91,32 +91,28 @@ impl ClassType {
 
 impl RuntimeTypeTrait for ClassType {
     fn init(&self, _: Vec<Val>, session: &mut CSharpSession) -> ParserResult<Val> {
-        let mut call: StaticFnCallType = self.constructors
-                    .get("new")
-                    .map(move |sb| self.constructor(sb.clone()))
-                    .ok_or_else(|| MethodError::MethodNotFound("new".into()))?;
+        let mut call: StaticFnCallType = self
+            .constructors
+            .get("new")
+            .map(move |sb| self.constructor(sb.clone()))
+            .ok_or_else(|| MethodError::MethodNotFound("new".into()))?;
         call(vec![], session).map_err(|e| e.into())
     }
 
     fn static_method(&self, name: MethodName) -> RuntimeResult<StaticFnCallType> {
         match name.name() {
-            "new" => {
-                self.constructors
-                    .get(name.full_name())
-                    .map(|sb| self.constructor(sb.clone()))
-                    .ok_or_else(|| MethodError::MethodNotFound(name.full_name().into()).into())
-            }
+            "new" => self
+                .constructors
+                .get(name.full_name())
+                .map(|sb| self.constructor(sb.clone()))
+                .ok_or_else(|| MethodError::MethodNotFound(name.full_name().into()).into()),
             _ => {
-                println!("Looking for static method: {}", name.full_name());
-                println!("Looking for static method: {:?}", self.static_methods);
                 let Some(fn_body) = self.static_methods.get(name.full_name()).cloned() else {
                     return Err(MethodError::MethodNotFound(name.full_name().into()).into());
                 };
-                println!("Looking for static method: {}", name.full_name());
                 let Some(fun) = fn_body.get_static_method() else {
                     return Err(MethodError::MethodNotFound(name.full_name().into()).into());
                 };
-                println!("Looking for static method: {}", name.full_name());
                 Ok(fun)
             }
         }
@@ -141,14 +137,16 @@ impl RuntimeTypeTrait for ClassType {
 impl ClassType {
     fn constructor(&self, constructor_body: ScriptBlock) -> StaticFnCallType {
         let class = self.clone();
-        Box::new(move |args: Vec<Val>, session: &mut CSharpSession| new_instance(class.clone(), args, constructor_body.clone(), session))
+        Box::new(move |args: Vec<Val>, session: &mut CSharpSession| {
+            new_instance(class.clone(), args, constructor_body.clone(), session)
+        })
     }
 }
 fn new_instance(
     mut class_type: ClassType,
     args: Vec<Val>,
     constructor_body: ScriptBlock,
-    session: &'static mut CSharpSession,
+    session: &mut CSharpSession,
 ) -> MethodResult<Val> {
     // Implementation of the 'new' method for class instantiation
     let properties = std::mem::take(&mut class_type.properties);

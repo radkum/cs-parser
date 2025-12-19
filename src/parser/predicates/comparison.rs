@@ -219,27 +219,28 @@ fn wildcard_to_regex(pattern: &str, case_insensitive: bool) -> String {
 //     #[test]
 //     fn test_eq() {
 //         let mut p = CSharpSession::new();
-//         assert_eq!(p.safe_eval_statements("1 -eq 1").unwrap(), "True".to_string());
-//         assert_eq!(p.safe_eval_statements("1 -eq 2").unwrap(), "False".to_string());
-//         assert_eq!(p.safe_eval_statements("\"1\" -ieq 1").unwrap(), "True".to_string());
-//         assert_eq!(p.safe_eval_statements("\"A\" -ieq \"a\"").unwrap(), "True".to_string());
-//         assert_eq!(
+//         assert_eq!(p.safe_eval_statements("1 -eq 1").unwrap(),
+// "True".to_string());         assert_eq!(p.safe_eval_statements("1 -eq
+// 2").unwrap(), "False".to_string());         assert_eq!(p.
+// safe_eval_statements("\"1\" -ieq 1").unwrap(), "True".to_string());
+//         assert_eq!(p.safe_eval_statements("\"A\" -ieq \"a\"").unwrap(),
+// "True".to_string());         assert_eq!(
 //             p.safe_eval_statements("\"A\" -ceq \"a\"").unwrap(),
 //             "False".to_string()
 //         );
-//         assert_eq!(p.safe_eval_statements("\"A\" -ne \"a\"").unwrap(), "False".to_string());
-//         assert_eq!(
+//         assert_eq!(p.safe_eval_statements("\"A\" -ne \"a\"").unwrap(),
+// "False".to_string());         assert_eq!(
 //             p.safe_eval_statements("\"A\" -ine \"a\"").unwrap(),
 //             "False".to_string()
 //         );
-//         assert_eq!(p.safe_eval_statements("\"A\" -cne \"a\"").unwrap(), "True".to_string());
-//     }
+//         assert_eq!(p.safe_eval_statements("\"A\" -cne \"a\"").unwrap(),
+// "True".to_string());     }
 
 //     #[test]
 //     fn test_gt() {
 //         let mut p = CSharpSession::new();
-//         assert_eq!(p.safe_eval_statements(r#"2 -gt 1"#).unwrap(), "True".to_string());
-//         assert_eq!(
+//         assert_eq!(p.safe_eval_statements(r#"2 -gt 1"#).unwrap(),
+// "True".to_string());         assert_eq!(
 //             p.safe_eval_statements(r#"[char]1 -le "b""#).unwrap(),
 //             "True".to_string()
 //         );
@@ -281,8 +282,8 @@ fn wildcard_to_regex(pattern: &str, case_insensitive: bool) -> String {
 //             "True".to_string()
 //         );
 
-//         assert_eq!(p.safe_eval_statements(r#" "a" -ge "A" "#).unwrap(), "True".to_string());
-//         assert_eq!(
+//         assert_eq!(p.safe_eval_statements(r#" "a" -ge "A" "#).unwrap(),
+// "True".to_string());         assert_eq!(
 //             p.safe_eval_statements(r#" "a" -ige "A" "#).unwrap(),
 //             "True".to_string()
 //         );
@@ -294,8 +295,8 @@ fn wildcard_to_regex(pattern: &str, case_insensitive: bool) -> String {
 //             p.safe_eval_statements(r#" "A" -cge "A" "#).unwrap(),
 //             "True".to_string()
 //         );
-//         assert_eq!(p.safe_eval_statements(r#" "A" -le "a" "#).unwrap(), "True".to_string());
-//         assert_eq!(
+//         assert_eq!(p.safe_eval_statements(r#" "A" -le "a" "#).unwrap(),
+// "True".to_string());         assert_eq!(
 //             p.safe_eval_statements(r#" "A" -ile "a" "#).unwrap(),
 //             "True".to_string()
 //         );
@@ -313,16 +314,16 @@ fn wildcard_to_regex(pattern: &str, case_insensitive: bool) -> String {
 //     fn test_match() {
 //         let mut p = CSharpSession::new();
 //         assert_eq!(
-//             p.safe_eval_statements(r#" "Hello World" -Match "hello" "#).unwrap(),
-//             "True".to_string()
+//             p.safe_eval_statements(r#" "Hello World" -Match "hello"
+// "#).unwrap(),             "True".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" "Hello World" -imatch "hello" "#).unwrap(),
-//             "True".to_string()
+//             p.safe_eval_statements(r#" "Hello World" -imatch "hello"
+// "#).unwrap(),             "True".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" "Hello World" -cmatch "hello" "#).unwrap(),
-//             "False".to_string()
+//             p.safe_eval_statements(r#" "Hello World" -cmatch "hello"
+// "#).unwrap(),             "False".to_string()
 //         );
 //         assert_eq!(
 //             p.safe_eval_statements(r#" "Hello World" -cNotmatch "hello" "#)
@@ -330,8 +331,8 @@ fn wildcard_to_regex(pattern: &str, case_insensitive: bool) -> String {
 //             "True".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" "abc123xyz" -cmatch "\d{3}" "#).unwrap(),
-//             "True".to_string()
+//             p.safe_eval_statements(r#" "abc123xyz" -cmatch "\d{3}"
+// "#).unwrap(),             "True".to_string()
 //         );
 //         assert_eq!(
 //             p.safe_eval_statements(r#" "abc123xyz" -cmatch 123 "#).unwrap(),
@@ -342,8 +343,8 @@ fn wildcard_to_regex(pattern: &str, case_insensitive: bool) -> String {
 //             "True".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" "user@example.com" -cmatch "\w+@\w+\.\w+" "#)
-//                 .unwrap(),
+//             p.safe_eval_statements(r#" "user@example.com" -cmatch
+// "\w+@\w+\.\w+" "#)                 .unwrap(),
 //             "True".to_string()
 //         );
 //     }
@@ -352,20 +353,20 @@ fn wildcard_to_regex(pattern: &str, case_insensitive: bool) -> String {
 //     fn test_like() {
 //         let mut p = CSharpSession::new();
 //         assert_eq!(
-//             p.safe_eval_statements(r#" "Hello World" -like "hello*" "#).unwrap(),
-//             "True".to_string()
+//             p.safe_eval_statements(r#" "Hello World" -like "hello*"
+// "#).unwrap(),             "True".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" "Hello World" -ilike "hello*" "#).unwrap(),
-//             "True".to_string()
+//             p.safe_eval_statements(r#" "Hello World" -ilike "hello*"
+// "#).unwrap(),             "True".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" "Hello World" -clike "hello*" "#).unwrap(),
-//             "False".to_string()
+//             p.safe_eval_statements(r#" "Hello World" -clike "hello*"
+// "#).unwrap(),             "False".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" "Hello World" -clike "Hello*" "#).unwrap(),
-//             "True".to_string()
+//             p.safe_eval_statements(r#" "Hello World" -clike "Hello*"
+// "#).unwrap(),             "True".to_string()
 //         );
 //         assert_eq!(
 //             p.safe_eval_statements(r#" "Hello World" -cnotlike "hello*" "#)
@@ -373,8 +374,8 @@ fn wildcard_to_regex(pattern: &str, case_insensitive: bool) -> String {
 //             "True".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" "Hello World" -clike "*llo*" "#).unwrap(),
-//             "True".to_string()
+//             p.safe_eval_statements(r#" "Hello World" -clike "*llo*"
+// "#).unwrap(),             "True".to_string()
 //         );
 //         assert_eq!(
 //             p.safe_eval_statements(r#" "Hello World" -cnotlike "*lllo*" "#)

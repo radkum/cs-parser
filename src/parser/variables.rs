@@ -3,13 +3,14 @@ mod scopes;
 mod variable;
 
 use std::collections::HashMap;
-use super::value::RUNTIME_TYPE_MAP;
+
 pub(super) use function::FunctionMap;
 use phf::phf_map;
 pub(super) use scopes::SessionScope;
 use thiserror_no_std::Error;
 pub(super) use variable::{Scope, VarName};
 
+use super::value::RUNTIME_TYPE_MAP;
 use crate::parser::{Val, value::ScriptBlock};
 #[derive(Error, Debug, PartialEq, Clone)]
 pub enum VariableError {
@@ -388,10 +389,9 @@ impl Variables {
         let var = self.find_variable_in_scopes(var_name);
 
         if var.is_none() {
-            let Ok(a) = RUNTIME_TYPE_MAP
-                .try_lock() else {
-                    return None;
-                };
+            let Ok(a) = RUNTIME_TYPE_MAP.try_lock() else {
+                return None;
+            };
             let Some(rt) = a.get(var_name.name.as_str()) else {
                 return None;
             };
@@ -463,18 +463,37 @@ mod tests {
     #[test]
     fn test_builtin_variables() {
         let mut p = CSharpSession::new();
-        assert_eq!(p.safe_eval_statements(r#" true;"#).unwrap().to_string().as_str(), "True");
-        assert_eq!(p.safe_eval_statements(r#" false;"#).unwrap().to_string().as_str(), "False");
-        assert_eq!(p.safe_eval_statements(r#" null;"#).unwrap().to_string().as_str(), "");
+        assert_eq!(
+            p.safe_eval_statements(r#" true;"#)
+                .unwrap()
+                .to_string()
+                .as_str(),
+            "True"
+        );
+        assert_eq!(
+            p.safe_eval_statements(r#" false;"#)
+                .unwrap()
+                .to_string()
+                .as_str(),
+            "False"
+        );
+        assert_eq!(
+            p.safe_eval_statements(r#" null;"#)
+                .unwrap()
+                .to_string()
+                .as_str(),
+            ""
+        );
     }
-
 
     #[test]
     fn test_variables() {
         let mut p = CSharpSession::new();
 
         let program_res = p
-            .parse_statements_string_as_program(r#" int var_int = 5; string var_string = "assdfa"; "#)
+            .parse_statements_string_as_program(
+                r#" int var_int = 5; string var_string = "assdfa"; "#,
+            )
             .unwrap();
         let script_variables = program_res.script_variables();
         assert_eq!(script_variables.get("var_int"), Some(&PsValue::Int(5)));
@@ -508,16 +527,25 @@ local_var = "local_value"
             p.safe_eval_statements(r#" age; "#).unwrap(),
             PsValue::Int(30)
         );
-        assert_eq!(p.safe_eval_statements(r#" false; "#).unwrap()
-            .to_string()
-            .as_str(), "False");
-        assert_eq!(p.safe_eval_statements(r#" null; "#).unwrap()
-            .to_string()
-            .as_str(), "");
         assert_eq!(
-            p.safe_eval_statements(r#" local_var; "#).unwrap()
-            .to_string()
-            .as_str(),
+            p.safe_eval_statements(r#" false; "#)
+                .unwrap()
+                .to_string()
+                .as_str(),
+            "False"
+        );
+        assert_eq!(
+            p.safe_eval_statements(r#" null; "#)
+                .unwrap()
+                .to_string()
+                .as_str(),
+            ""
+        );
+        assert_eq!(
+            p.safe_eval_statements(r#" local_var; "#)
+                .unwrap()
+                .to_string()
+                .as_str(),
             "\"local_value\""
         );
     }
@@ -545,16 +573,25 @@ local_var = "local_value"
             p.safe_eval_statements(r#" age; "#).unwrap(),
             PsValue::Int(30)
         );
-        assert_eq!(p.safe_eval_statements(r#" false; "#).unwrap()
-            .to_string()
-            .as_str(), "False");
-        assert_eq!(p.safe_eval_statements(r#" null; "#).unwrap()
-            .to_string()
-            .as_str(), "");
         assert_eq!(
-            p.safe_eval_statements(r#" local_var; "#).unwrap()
-            .to_string()
-            .as_str(),
+            p.safe_eval_statements(r#" false; "#)
+                .unwrap()
+                .to_string()
+                .as_str(),
+            "False"
+        );
+        assert_eq!(
+            p.safe_eval_statements(r#" null; "#)
+                .unwrap()
+                .to_string()
+                .as_str(),
+            ""
+        );
+        assert_eq!(
+            p.safe_eval_statements(r#" local_var; "#)
+                .unwrap()
+                .to_string()
+                .as_str(),
             "\"local_value\""
         );
     }

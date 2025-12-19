@@ -47,7 +47,6 @@ pub(crate) type StringPredType = Box<dyn Fn(Val, Val) -> OpResult<Val>>;
 pub(crate) struct StringPred;
 impl StringPred {
     pub(crate) fn get(name: &str) -> Option<StringPredType> {
-
         //-as is very simple, thats why there is no single module for that
         if name == AS_PREDICATE {
             return Some(Box::new(move |v1, v2| Ok(v1.cast(&v2)?)));
@@ -106,16 +105,46 @@ mod tests {
     #[test]
     fn test_range_with_float() {
         let mut p = CSharpSession::new();
-        assert_eq!(p.safe_eval_statements(r#" [string](1..1.3) "#).unwrap().to_string().as_str(), "1");
-        assert_eq!(p.safe_eval_statements(r#" [string](1...3) "#).unwrap().to_string().as_str(), "1 0");
-        assert_eq!(p.safe_eval_statements(r#" [string]1...3 "#).unwrap().to_string().as_str(), "1\n0");
+        assert_eq!(
+            p.safe_eval_statements(r#" [string](1..1.3) "#)
+                .unwrap()
+                .to_string()
+                .as_str(),
+            "1"
+        );
+        assert_eq!(
+            p.safe_eval_statements(r#" [string](1...3) "#)
+                .unwrap()
+                .to_string()
+                .as_str(),
+            "1 0"
+        );
+        assert_eq!(
+            p.safe_eval_statements(r#" [string]1...3 "#)
+                .unwrap()
+                .to_string()
+                .as_str(),
+            "1\n0"
+        );
     }
 
     #[test]
     fn test_unary() {
         let mut p = CSharpSession::new();
-        assert_eq!(p.safe_eval_statements(r#" +5 "#).unwrap().to_string().as_str(), "5");
-        assert_eq!(p.safe_eval_statements(r#" -5 "#).unwrap().to_string().as_str(), "-5");
+        assert_eq!(
+            p.safe_eval_statements(r#" +5 "#)
+                .unwrap()
+                .to_string()
+                .as_str(),
+            "5"
+        );
+        assert_eq!(
+            p.safe_eval_statements(r#" -5 "#)
+                .unwrap()
+                .to_string()
+                .as_str(),
+            "-5"
+        );
     }
 
     #[test]
@@ -124,32 +153,36 @@ mod tests {
         assert_eq!(
             p.safe_eval_statements(r#" "Hello, {0}!" -f "world" "#)
                 .unwrap()
-                .to_string().as_str(),
+                .to_string()
+                .as_str(),
             "Hello, world!"
         );
         assert_eq!(
             p.safe_eval_statements(r#" "Hello, {0}!" -f "every{0}" -f "body"  "#)
-.unwrap()
-            .to_string()
-            .as_str(),
+                .unwrap()
+                .to_string()
+                .as_str(),
             "Hello, everybody!"
         );
         assert_eq!(
             p.safe_eval_statements(r#" "{0} + {1} = {2}" -f 5, 7, (5 + 7) "#)
                 .unwrap()
-                .to_string().as_str(),
+                .to_string()
+                .as_str(),
             "5 + 7 = 12"
         );
         assert_eq!(
-            p.safe_eval_statements(r#" "{0:N2}" -f 1234.56789 "#).unwrap()
-            .to_string()
-            .as_str(),
+            p.safe_eval_statements(r#" "{0:N2}" -f 1234.56789 "#)
+                .unwrap()
+                .to_string()
+                .as_str(),
             "1234.57"
         );
         assert_eq!(
-            p.safe_eval_statements(r#" "|{0,10}|" -f "Hi" "#).unwrap()
-            .to_string()
-            .as_str(),
+            p.safe_eval_statements(r#" "|{0,10}|" -f "Hi" "#)
+                .unwrap()
+                .to_string()
+                .as_str(),
             "|          Hi|"
         );
         assert_eq!(
@@ -163,9 +196,9 @@ mod tests {
         );
         assert_eq!(
             p.safe_eval_statements(r#" "{0:310100a0b00}" -f 578 "#)
-.unwrap()
-            .to_string()
-            .as_str(),
+                .unwrap()
+                .to_string()
+                .as_str(),
             "310100a5b78"
         );
     }
@@ -174,41 +207,45 @@ mod tests {
     fn test_strings() {
         let mut p = CSharpSession::new().with_variables(Variables::new().values_persist());
         assert_eq!(
-            p.safe_eval_statements(r#" 'It''s fine' "#).unwrap()
-            .to_string()
-            .as_str(),
+            p.safe_eval_statements(r#" 'It''s fine' "#)
+                .unwrap()
+                .to_string()
+                .as_str(),
             "It''s fine"
         );
         assert_eq!(
-            p.safe_eval_statements(r#" "Price is $" "#).unwrap()
-            .to_string()
-            .as_str(),
+            p.safe_eval_statements(r#" "Price is $" "#)
+                .unwrap()
+                .to_string()
+                .as_str(),
             "Price is $"
         );
         assert_eq!(
-            p.safe_eval_statements(r#" "Result: $(1+2)" "#).unwrap()
-            .to_string()
-            .as_str(),
+            p.safe_eval_statements(r#" "Result: $(1+2)" "#)
+                .unwrap()
+                .to_string()
+                .as_str(),
             "Result: 3"
         );
         assert_eq!(
             p.safe_eval_statements(r#" $name = "Radek";"Hello $name" "#)
-.unwrap()
-            .to_string()
-            .as_str(),
+                .unwrap()
+                .to_string()
+                .as_str(),
             "Hello Radek"
         );
         assert_eq!(
-            p.safe_eval_statements(r#" "This is a quote: `"" "#).unwrap()
-            .to_string()
-            .as_str(),
+            p.safe_eval_statements(r#" "This is a quote: `"" "#)
+                .unwrap()
+                .to_string()
+                .as_str(),
             "This is a quote: \""
         );
         assert_eq!(
             p.safe_eval_statements(r#" "A backtick `` and escaped quote `"" "#)
-.unwrap()
-            .to_string()
-            .as_str(),
+                .unwrap()
+                .to_string()
+                .as_str(),
             "A backtick ` and escaped quote \""
         );
         assert_eq!(

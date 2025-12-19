@@ -7,12 +7,13 @@ mod substring;
 mod to_upper_lower;
 mod trim;
 use super::{MethodCallType, MethodError, MethodResult, RuntimeObjectTrait, Val, ValType};
-use crate::parser::{
-    MethodName,
-    value::{RuntimeError, runtime_object::RuntimeResult},
+use crate::{
+    CSharpSession,
+    parser::{
+        MethodName,
+        value::{RuntimeError, runtime_object::RuntimeResult},
+    },
 };
-
-use crate::CSharpSession;
 
 #[derive(Clone, Debug, SmartDefault, PartialEq)]
 pub(crate) struct PsString(pub String);
@@ -56,13 +57,15 @@ impl RuntimeObjectTrait for PsString {
             _ => Err(RuntimeError::MethodNotFound(name.to_string()))?,
         };
 
-        Ok(Box::new(move |v: &mut Val, args: Vec<Val>, _: &mut CSharpSession| {
-            if let Val::String(str) = v {
-                fn_ptr(str, args)
-            } else {
-                Err(MethodError::ObjectNotFound(v.cast_to_string()))
-            }
-        }))
+        Ok(Box::new(
+            move |v: &mut Val, args: Vec<Val>, _: &mut CSharpSession| {
+                if let Val::String(str) = v {
+                    fn_ptr(str, args)
+                } else {
+                    Err(MethodError::ObjectNotFound(v.cast_to_string()))
+                }
+            },
+        ))
     }
 
     fn clone_rt(&self) -> Box<dyn RuntimeObjectTrait> {

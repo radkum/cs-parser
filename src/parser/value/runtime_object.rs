@@ -1,7 +1,11 @@
 use super::{MethodResult, Val, *};
-use crate::{CSharpSession, parser::value::{MethodError, PsString}};
-pub type MethodCallType<'a> = Box<dyn FnMut(&mut Val, Vec<Val>, &'a mut CSharpSession) -> MethodResult<Val>>;
-pub type StaticFnCallType<'a> = Box<dyn FnMut(Vec<Val>, &'a mut CSharpSession) -> MethodResult<Val>>;
+use crate::{
+    CSharpSession,
+    parser::value::{MethodError, PsString},
+};
+pub type MethodCallType =
+    Box<dyn FnMut(&mut Val, Vec<Val>, &mut CSharpSession) -> MethodResult<Val>>;
+pub type StaticFnCallType = Box<dyn FnMut(Vec<Val>, &mut CSharpSession) -> MethodResult<Val>>;
 use thiserror_no_std::Error;
 
 use super::val_type::type_info::RuntimeType;

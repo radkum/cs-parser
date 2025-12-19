@@ -21,12 +21,11 @@ pub(crate) use ps_string::PsString;
 use ps_string::str_cmp;
 pub(crate) use runtime_object::RuntimeError;
 pub(super) use runtime_object::RuntimeObjectTrait;
-pub(super) use val_type::RuntimeTypeTrait;
 use runtime_object::{MethodCallType, StaticFnCallType};
 pub(crate) use script_block::ScriptBlock;
 use smart_default::SmartDefault;
 pub(crate) use val_error::ValError;
-pub(super) use val_type::{RUNTIME_TYPE_MAP, ValType};
+pub(super) use val_type::{RUNTIME_TYPE_MAP, RuntimeTypeTrait, ValType};
 pub type ValResult<T> = core::result::Result<T, ValError>;
 use runtime_object::RuntimeResult;
 

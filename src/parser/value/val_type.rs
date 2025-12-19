@@ -1,6 +1,5 @@
 mod runtime_type;
 pub(crate) mod type_info;
-use crate::CSharpSession;
 use std::{
     collections::HashMap,
     sync::{LazyLock, Mutex},
@@ -11,9 +10,8 @@ use smart_default::SmartDefault;
 pub(super) use type_info::ObjectType;
 use type_info::{ArrayType, ValueType};
 
-use crate::parser::ParserResult;
-
 use super::{RuntimeResult, Val, ValError, ValResult, string_builder::StringBuilderType};
+use crate::{CSharpSession, parser::ParserResult};
 
 #[derive(Debug, SmartDefault, PartialEq, Clone)]
 pub enum ValType {
@@ -62,9 +60,10 @@ impl std::fmt::Display for ValType {
 const STRING_BUILDER: StringBuilderType = StringBuilderType {};
 pub static RUNTIME_TYPE_MAP: LazyLock<Mutex<HashMap<String, Box<dyn RuntimeTypeTrait>>>> =
     LazyLock::new(|| {
-        Mutex::new(HashMap::from([
-            (StringBuilderType::nname(), Box::new(STRING_BUILDER) as _),
-        ]))
+        Mutex::new(HashMap::from([(
+            StringBuilderType::nname(),
+            Box::new(STRING_BUILDER) as _,
+        )]))
     });
 impl ValType {
     pub(crate) fn cast(s: &str) -> ValResult<Self> {
@@ -72,7 +71,7 @@ impl ValType {
         if "object" == s || "object[]" == s {
             s = "array".into();
         }
-        
+
         s.retain(|c| !c.is_whitespace());
         if let Some(prefix) = s.strip_suffix("[]") {
             return Ok(Self::Array(Some(Box::new(Self::cast(prefix)?))));
@@ -149,14 +148,15 @@ impl RuntimeTypeTrait for ValType {
                 let map = RUNTIME_TYPE_MAP
                     .try_lock()
                     .map_err(|_| ValError::UnknownType(name.to_string()))?;
-                let rt = map.get(name.as_str())
+                let rt = map
+                    .get(name.as_str())
                     .ok_or_else(|| ValError::UnknownType(name.to_string()))?;
                 rt.init(args, sesssion)
             }
             _ => todo!(),
         }
     }
-    
+
     fn base_type(&self) -> Box<dyn RuntimeTypeTrait> {
         match self {
             ValType::Null => unreachable!(),

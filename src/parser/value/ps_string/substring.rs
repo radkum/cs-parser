@@ -140,7 +140,10 @@ $string = $string.substring(5,0);$string"#;
 $string = 'hello, world'
 $string = $string.remove(1, 4);$string"#;
         let program_res = p.parse_input(input).unwrap();
-        assert_eq!(program_res.result(), PsValue::String("h, world".to_string()));
+        assert_eq!(
+            program_res.result(),
+            PsValue::String("h, world".to_string())
+        );
 
         let input = r#"
 $string = 'hello, world'

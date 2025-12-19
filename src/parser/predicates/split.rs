@@ -170,23 +170,33 @@ mod tests {
         let mut p = CSharpSession::new().with_variables(Variables::new().values_persist());
 
         assert_eq!(
-            p.safe_eval_statements(r#" -sPlit "red yellow blue green" "#).unwrap().to_string(),
+            p.safe_eval_statements(r#" -sPlit "red yellow blue green" "#)
+                .unwrap()
+                .to_string(),
             vec!["red", "yellow", "blue", "green"].join(NEWLINE)
         );
         assert_eq!(
-            p.safe_eval_statements(r#" -split ("red", "yellow blue green") "#).unwrap().to_string(),
+            p.safe_eval_statements(r#" -split ("red", "yellow blue green") "#)
+                .unwrap()
+                .to_string(),
             vec!["red", "yellow", "blue", "green"].join(NEWLINE)
         );
         assert_eq!(
-            p.safe_eval_statements(r#" -split ("red", "yellow blue green"), 2 "#).unwrap().to_string(),
+            p.safe_eval_statements(r#" -split ("red", "yellow blue green"), 2 "#)
+                .unwrap()
+                .to_string(),
             vec!["red", "yellow", "blue", "green", "2"].join(NEWLINE)
         );
         assert_eq!(
-            p.safe_eval_statements(r#" -split @("red", "yellow blue green") "#).unwrap().to_string(),
+            p.safe_eval_statements(r#" -split @("red", "yellow blue green") "#)
+                .unwrap()
+                .to_string(),
             vec!["red", "yellow", "blue", "green"].join(NEWLINE)
         );
         assert_eq!(
-            p.safe_eval_statements(r#" -split @("red", "yellow blue green"), 2 "#).unwrap().to_string(),
+            p.safe_eval_statements(r#" -split @("red", "yellow blue green"), 2 "#)
+                .unwrap()
+                .to_string(),
             vec!["red", "yellow", "blue", "green", "2"].join(NEWLINE)
         );
 
@@ -211,7 +221,11 @@ $scriptBlock = {
         p.parse_input(input).unwrap();
 
         assert_eq!(
-            p.safe_eval_statements(r#" -split ("red", ("yellow blue green", 1, $scriptblock, $nesteddata)) "#).unwrap().to_string(),
+            p.safe_eval_statements(
+                r#" -split ("red", ("yellow blue green", 1, $scriptblock, $nesteddata)) "#
+            )
+            .unwrap()
+            .to_string(),
             vec![
                 "red",
                 "yellow",
@@ -234,7 +248,9 @@ $scriptBlock = {
     fn test_split_typical() {
         assert_eq!(
             CSharpSession::new()
-                .safe_eval_statements(r#" ("rredd", ("yellow blue green", 1)) -split "e" "#).unwrap().to_string(),
+                .safe_eval_statements(r#" ("rredd", ("yellow blue green", 1)) -split "e" "#)
+                .unwrap()
+                .to_string(),
             vec!["rr", "dd", "y", "llow blu", " gr", "", "n 1"].join(NEWLINE)
         );
         assert_eq!(CSharpSession::new().safe_eval_statements(r#" $c = "Mercury,Venus,Earth,Mars,Jupiter,Saturn,Uranus,Neptune";$c -split ",", 5 "#).unwrap().to_string(),
@@ -242,34 +258,48 @@ $scriptBlock = {
 
         assert_eq!(
             CSharpSession::new()
-                .safe_eval_statements(r#" "Lastname:FirstName:Address" -split ":" "#).unwrap().to_string(),
+                .safe_eval_statements(r#" "Lastname:FirstName:Address" -split ":" "#)
+                .unwrap()
+                .to_string(),
             vec!["Lastname", "FirstName", "Address"].join(NEWLINE)
         );
 
         assert_eq!(
             CSharpSession::new()
-                .safe_eval_statements(r#" "Lastname:FirstName:Address" -split "(:)" "#).unwrap().to_string(),
+                .safe_eval_statements(r#" "Lastname:FirstName:Address" -split "(:)" "#)
+                .unwrap()
+                .to_string(),
             vec!["Lastname", ":", "FirstName", ":", "Address"].join(NEWLINE)
         );
 
         assert_eq!(
             CSharpSession::new()
-                .safe_eval_statements(r#" [string] (-isplit @('a,b c','1 2,3,4,5', '5,6,7,8')) "#).unwrap().to_string(),
+                .safe_eval_statements(r#" [string] (-isplit @('a,b c','1 2,3,4,5', '5,6,7,8')) "#)
+                .unwrap()
+                .to_string(),
             "a,b c 1 2,3,4,5 5,6,7,8".to_string()
         );
         assert_eq!(
             CSharpSession::new()
-                .safe_eval_statements(r#" $c = 'a,b,c','1,2,3,4,5', '5,6,7,8';[string]($c -split ',', 2) "#).unwrap().to_string(),
+                .safe_eval_statements(
+                    r#" $c = 'a,b,c','1,2,3,4,5', '5,6,7,8';[string]($c -split ',', 2) "#
+                )
+                .unwrap()
+                .to_string(),
             "a b,c 1 2,3,4,5 5 6,7,8".to_string()
         );
         assert_eq!(
             CSharpSession::new()
-                .safe_eval_statements(r#" $c = 2121212, 1212;[string]($c -split '1', 2) "#).unwrap().to_string(),
+                .safe_eval_statements(r#" $c = 2121212, 1212;[string]($c -split '1', 2) "#)
+                .unwrap()
+                .to_string(),
             "2 21212  212".to_string()
         );
         assert_eq!(
             CSharpSession::new()
-                .safe_eval_statements(r#" [string]("Mercury,Venus,Earth" -split '[et]')  "#).unwrap().to_string(),
+                .safe_eval_statements(r#" [string]("Mercury,Venus,Earth" -split '[et]')  "#)
+                .unwrap()
+                .to_string(),
             "M rcury,V nus, ar h".to_string()
         );
     }

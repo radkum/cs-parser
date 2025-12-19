@@ -114,10 +114,7 @@ impl ScriptBlock {
                 .map_err(ParserError::from)?;
         }
 
-        let (
-            script_last_output,
-            _,
-        ) = ps.eval_statement_block_string(self.body.as_str());
+        let (script_last_output, _) = ps.eval_statement_block_string(self.body.as_str());
         //output.into_iter().for_each(|f| ps.add_output_statement(f));
         Ok(CommandOutput::new(script_last_output, Vec::new()))
     }
@@ -133,24 +130,31 @@ impl ScriptBlock {
     }
 
     pub(crate) fn get_static_method(&self) -> Option<StaticFnCallType> {
-        let mut fn_body = self.clone();
-        let fun = move |params, session| {
-            fn_body
+        let fn_body = self.clone();
+        Some(Box::new(move |params, session| {
+            let mut owned = fn_body.clone();
+            owned
                 .run_static_method(params, session)
                 .map_err(|e| super::MethodError::RuntimeError(e.to_string()))
-        };
-        Some(Box::new(fun))
+        }))
     }
 
-    pub fn run_static_method(&mut self, args: Vec<Val>, session: &mut CSharpSession) -> ParserResult<Val> {
+    pub fn run_static_method(
+        &mut self,
+        args: Vec<Val>,
+        session: &mut CSharpSession,
+    ) -> ParserResult<Val> {
         session.push_scope_session();
         let script_last_output = self.run_static_method_impl(args, session);
         session.pop_scope_session();
         Ok(script_last_output?)
     }
 
-    fn run_static_method_impl(&mut self, args: Vec<Val>, ps: &mut CSharpSession) -> ParserResult<Val> {
-        println!("Running static script block with body: {}", self.body);
+    fn run_static_method_impl(
+        &mut self,
+        args: Vec<Val>,
+        ps: &mut CSharpSession,
+    ) -> ParserResult<Val> {
         for (i, param) in self.params.0.iter().enumerate() {
             let val = args
                 .get(i)
@@ -161,21 +165,26 @@ impl ScriptBlock {
                 .map_err(ParserError::from)?;
         }
         let (script_last_output, _) = ps.eval_statement_block_string(self.body.as_str());
-        
+
         Ok(script_last_output)
     }
 
     pub(crate) fn get_method(&self) -> Option<MethodCallType> {
-        let mut fn_body = self.clone();
-        let fun = move |object: &mut Val, args, session| {
-            fn_body
+        let fn_body = self.clone();
+        Some(Box::new(move |object: &mut Val, args, session| {
+            let mut owned = fn_body.clone();
+            owned
                 .run_method(object, args, session)
                 .map_err(|e| super::MethodError::RuntimeError(e.to_string()))
-        };
-        Some(Box::new(fun))
+        }))
     }
 
-    pub fn run_method(&mut self, this: &mut Val, args: Vec<Val>, session: &mut CSharpSession) -> ParserResult<Val> {
+    pub fn run_method(
+        &mut self,
+        this: &mut Val,
+        args: Vec<Val>,
+        session: &mut CSharpSession,
+    ) -> ParserResult<Val> {
         if self.body.is_empty() {
             return Ok(Val::Null);
         }
@@ -185,8 +194,14 @@ impl ScriptBlock {
         Ok(script_last_output?)
     }
 
-    fn run_method_impl(&mut self, this: &mut Val, args: Vec<Val>, session: &mut CSharpSession) -> ParserResult<Val> {
-        session.variables
+    fn run_method_impl(
+        &mut self,
+        this: &mut Val,
+        args: Vec<Val>,
+        session: &mut CSharpSession,
+    ) -> ParserResult<Val> {
+        session
+            .variables
             .set_local("this", this.clone())
             .map_err(ParserError::from)?;
         for (i, param) in self.params.0.iter().enumerate() {
@@ -194,13 +209,17 @@ impl ScriptBlock {
                 .get(i)
                 .cloned()
                 .unwrap_or(param.default_value().unwrap_or(Val::Null));
-            session.variables
+            session
+                .variables
                 .set_local(param.name(), val)
                 .map_err(ParserError::from)?;
         }
 
         let (script_last_output, _) = session.eval_statement_block_string(self.body.as_str());
-        if let Some(val) = session.variables.get(&VarName::new(None, "this".to_string())) {
+        if let Some(val) = session
+            .variables
+            .get(&VarName::new(None, "this".to_string()))
+        {
             *this = val.clone();
         }
         Ok(script_last_output)

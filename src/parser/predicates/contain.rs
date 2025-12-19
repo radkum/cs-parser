@@ -92,20 +92,20 @@ pub fn cnotcontains(a: Val, b: Val) -> bool {
 //     fn test_in() {
 //         let mut p = CSharpSession::new();
 //         assert_eq!(
-//             p.safe_eval_statements(r#" ($true, 1) -in ("True 1", 2)  "#).unwrap(),
-//             "True".to_string()
+//             p.safe_eval_statements(r#" ($true, 1) -in ("True 1", 2)
+// "#).unwrap(),             "True".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" ($true, 1) -in (("True1", "1"), 2)  "#)
-//                 .unwrap(),
+//             p.safe_eval_statements(r#" ($true, 1) -in (("True1", "1"), 2)
+// "#)                 .unwrap(),
 //             "False".to_string()
 //         );
 //         assert_eq!(
 //             p.safe_eval_statements(r#" 1 -in "3", "1"   "#).unwrap(),
 //             "True".to_string()
 //         );
-//         assert_eq!(p.safe_eval_statements(r#" 1 -in "1"   "#).unwrap(), "True".to_string());
-//         assert_eq!(
+//         assert_eq!(p.safe_eval_statements(r#" 1 -in "1"   "#).unwrap(),
+// "True".to_string());         assert_eq!(
 //             p.safe_eval_statements(r#" $true -iIn "true", "1" "#).unwrap(),
 //             "True".to_string()
 //         );
@@ -124,8 +124,8 @@ pub fn cnotcontains(a: Val, b: Val) -> bool {
 //             "False".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" ($true, 1) -inotin (("True1", "1"), 2) "#)
-//                 .unwrap(),
+//             p.safe_eval_statements(r#" ($true, 1) -inotin (("True1", "1"), 2)
+// "#)                 .unwrap(),
 //             "True".to_string()
 //         );
 //         assert_eq!(
@@ -133,12 +133,12 @@ pub fn cnotcontains(a: Val, b: Val) -> bool {
 //             "False".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" $true -inotin "true", "1" "#).unwrap(),
-//             "False".to_string()
+//             p.safe_eval_statements(r#" $true -inotin "true", "1"
+// "#).unwrap(),             "False".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" $true -cnotin "true", "1" "#).unwrap(),
-//             "True".to_string()
+//             p.safe_eval_statements(r#" $true -cnotin "true", "1"
+// "#).unwrap(),             "True".to_string()
 //         );
 //     }
 
@@ -151,8 +151,8 @@ pub fn cnotcontains(a: Val, b: Val) -> bool {
 //             "True".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" (("True1", "1"), 2) -contains ($true, 1) "#)
-//                 .unwrap(),
+//             p.safe_eval_statements(r#" (("True1", "1"), 2) -contains ($true,
+// 1) "#)                 .unwrap(),
 //             "False".to_string()
 //         );
 //         assert_eq!(
@@ -164,12 +164,12 @@ pub fn cnotcontains(a: Val, b: Val) -> bool {
 //             "True".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" "true", "1" -icontains $true "#).unwrap(),
-//             "True".to_string()
+//             p.safe_eval_statements(r#" "true", "1" -icontains $true
+// "#).unwrap(),             "True".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" "true", "1" -ccontains $true "#).unwrap(),
-//             "False".to_string()
+//             p.safe_eval_statements(r#" "true", "1" -ccontains $true
+// "#).unwrap(),             "False".to_string()
 //         );
 //     }
 
@@ -177,13 +177,13 @@ pub fn cnotcontains(a: Val, b: Val) -> bool {
 //     fn test_notconstains() {
 //         let mut p = CSharpSession::new();
 //         assert_eq!(
-//             p.safe_eval_statements(r#" ("True 1", 2) -notcontains ($true, 1) "#)
-//                 .unwrap(),
+//             p.safe_eval_statements(r#" ("True 1", 2) -notcontains ($true, 1)
+// "#)                 .unwrap(),
 //             "False".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" (("True1", "1"), 2) -notcontains ($true, 1) "#)
-//                 .unwrap(),
+//             p.safe_eval_statements(r#" (("True1", "1"), 2) -notcontains
+// ($true, 1) "#)                 .unwrap(),
 //             "True".to_string()
 //         );
 //         assert_eq!(
@@ -195,16 +195,16 @@ pub fn cnotcontains(a: Val, b: Val) -> bool {
 //             "False".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" "true", "1" -notcontains $true "#).unwrap(),
-//             "False".to_string()
+//             p.safe_eval_statements(r#" "true", "1" -notcontains $true
+// "#).unwrap(),             "False".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" "true", "1" -inotcontains $true "#).unwrap(),
-//             "False".to_string()
+//             p.safe_eval_statements(r#" "true", "1" -inotcontains $true
+// "#).unwrap(),             "False".to_string()
 //         );
 //         assert_eq!(
-//             p.safe_eval_statements(r#" "true", "1" -cnotcontains $true "#).unwrap(),
-//             "True".to_string()
+//             p.safe_eval_statements(r#" "true", "1" -cnotcontains $true
+// "#).unwrap(),             "True".to_string()
 //         );
 //     }
 // }

@@ -74,8 +74,8 @@ impl ArithmeticPred {
 //         assert_eq!(
 //             CSharpSession::new()
 //                 .with_variables(Variables::force_eval())
-//                 .safe_eval_statements(r#"$asdf += 1 + " 1" + "4  " + $asdf; $asdf"#)
-//                 .unwrap(),
+//                 .safe_eval_statements(r#"$asdf += 1 + " 1" + "4  " + $asdf;
+// $asdf"#)                 .unwrap(),
 //             "6".to_string()
 //         );
 //     }
@@ -104,8 +104,8 @@ impl ArithmeticPred {
 //         assert_eq!(
 //             CSharpSession::new()
 //                 .with_variables(Variables::force_eval())
-//                 .safe_eval_statements(r#"$asdf -= 1 + " 1" - "4  " + $asdf; $asdf"#)
-//                 .unwrap(),
+//                 .safe_eval_statements(r#"$asdf -= 1 + " 1" - "4  " + $asdf;
+// $asdf"#)                 .unwrap(),
 //             "2".to_string()
 //         );
 //     }
@@ -117,20 +117,20 @@ impl ArithmeticPred {
 //             "64".to_string()
 //         );
 //         assert_eq!(
-//             CSharpSession::new().safe_eval_statements(r#" 8*" 7 " "#).unwrap(),
-//             "56".to_string()
+//             CSharpSession::new().safe_eval_statements(r#" 8*" 7 "
+// "#).unwrap(),             "56".to_string()
 //         );
 //         assert_eq!(
-//             CSharpSession::new().safe_eval_statements(r#" " 8 "* 2 "#).unwrap(),
-//             " 8  8 ".to_string()
+//             CSharpSession::new().safe_eval_statements(r#" " 8 "* 2
+// "#).unwrap(),             " 8  8 ".to_string()
 //         );
 //         assert_eq!(
-//             CSharpSession::new().safe_eval_statements(r#" " 8a "* 2 "#).unwrap(),
-//             " 8a  8a ".to_string()
+//             CSharpSession::new().safe_eval_statements(r#" " 8a "* 2
+// "#).unwrap(),             " 8a  8a ".to_string()
 //         );
 //         assert_eq!(
-//             CSharpSession::new().safe_eval_statements(r#" " 8a "* " 2" "#).unwrap(),
-//             " 8a  8a ".to_string()
+//             CSharpSession::new().safe_eval_statements(r#" " 8a "* " 2"
+// "#).unwrap(),             " 8a  8a ".to_string()
 //         );
 //         assert_eq!(
 //             CSharpSession::new()
@@ -141,8 +141,8 @@ impl ArithmeticPred {
 //         assert_eq!(
 //             CSharpSession::new()
 //                 .with_variables(Variables::force_eval())
-//                 .safe_eval_statements(r#"$asdf = 1 + " 1" - "4  " + $asdf; $asdf*5"#)
-//                 .unwrap(),
+//                 .safe_eval_statements(r#"$asdf = 1 + " 1" - "4  " + $asdf;
+// $asdf*5"#)                 .unwrap(),
 //             "-10".to_string()
 //         );
 //     }
@@ -154,30 +154,30 @@ impl ArithmeticPred {
 //             "1".to_string()
 //         );
 //         assert_eq!(
-//             CSharpSession::new().safe_eval_statements(r#" 8/" 16 " "#).unwrap(),
-//             "0.5".to_string()
+//             CSharpSession::new().safe_eval_statements(r#" 8/" 16 "
+// "#).unwrap(),             "0.5".to_string()
 //         );
 //         assert_eq!(
-//             CSharpSession::new().safe_eval_statements(r#" " 8 "/ 2 "#).unwrap(),
-//             "4".to_string()
+//             CSharpSession::new().safe_eval_statements(r#" " 8 "/ 2
+// "#).unwrap(),             "4".to_string()
 //         );
 //         assert_eq!(
-//             CSharpSession::new().safe_eval_statements(r#" " 8a "/ 2 "#).unwrap(),
-//             "".to_string()
+//             CSharpSession::new().safe_eval_statements(r#" " 8a "/ 2
+// "#).unwrap(),             "".to_string()
 //         );
 //         assert_eq!(
-//             CSharpSession::new().safe_eval_statements(r#" " 8a "/ " 2" "#).unwrap(),
-//             "".to_string()
+//             CSharpSession::new().safe_eval_statements(r#" " 8a "/ " 2"
+// "#).unwrap(),             "".to_string()
 //         );
 //         assert_eq!(
-//             CSharpSession::new().safe_eval_statements(r#" " 8 "/ " 2a" "#).unwrap(),
-//             "".to_string()
+//             CSharpSession::new().safe_eval_statements(r#" " 8 "/ " 2a"
+// "#).unwrap(),             "".to_string()
 //         );
 //         assert_eq!(
 //             CSharpSession::new()
 //                 .with_variables(Variables::force_eval())
-//                 .safe_eval_statements(r#"$asdf = 1 + " 1" - "4  " + $asdf; $asdf/=5;$asdf"#)
-//                 .unwrap(),
+//                 .safe_eval_statements(r#"$asdf = 1 + " 1" - "4  " + $asdf;
+// $asdf/=5;$asdf"#)                 .unwrap(),
 //             "-0.4".to_string()
 //         );
 //     }
@@ -193,32 +193,32 @@ impl ArithmeticPred {
 //             "1".to_string()
 //         );
 //         assert_eq!(
-//             CSharpSession::new().safe_eval_statements(r#" 8%" 16 " "#).unwrap(),
-//             "8".to_string()
+//             CSharpSession::new().safe_eval_statements(r#" 8%" 16 "
+// "#).unwrap(),             "8".to_string()
 //         );
 //         //assert_eq!(PowerShellParser::new().safe_eval(r#" " 8 "% 0.3
 //         // "#).unwrap(), "0.2".to_string());
 //         assert_eq!(
-//             CSharpSession::new().safe_eval_statements(r#" " 8 "% 0.3 "#).unwrap(),
-//             "0.2000000000000003".to_string()
+//             CSharpSession::new().safe_eval_statements(r#" " 8 "% 0.3
+// "#).unwrap(),             "0.2000000000000003".to_string()
 //         );
 //         assert_eq!(
-//             CSharpSession::new().safe_eval_statements(r#" " 8a "% 0.2 "#).unwrap(),
-//             "".to_string()
+//             CSharpSession::new().safe_eval_statements(r#" " 8a "% 0.2
+// "#).unwrap(),             "".to_string()
 //         );
 //         assert_eq!(
-//             CSharpSession::new().safe_eval_statements(r#" " 8a "% " 2" "#).unwrap(),
-//             "".to_string()
+//             CSharpSession::new().safe_eval_statements(r#" " 8a "% " 2"
+// "#).unwrap(),             "".to_string()
 //         );
 //         assert_eq!(
-//             CSharpSession::new().safe_eval_statements(r#" " 8 "% " 2a" "#).unwrap(),
-//             "".to_string()
+//             CSharpSession::new().safe_eval_statements(r#" " 8 "% " 2a"
+// "#).unwrap(),             "".to_string()
 //         );
 //         assert_eq!(
 //             CSharpSession::new()
 //                 .with_variables(Variables::force_eval())
-//                 .safe_eval_statements(r#"$asdf = 1 + " 1" % "4  " + $asdf; $asdf%=5;$asdf"#)
-//                 .unwrap(),
+//                 .safe_eval_statements(r#"$asdf = 1 + " 1" % "4  " + $asdf;
+// $asdf%=5;$asdf"#)                 .unwrap(),
 //             "2".to_string()
 //         );
 //     }
@@ -233,8 +233,8 @@ impl ArithmeticPred {
 //             "70"
 //         );
 //         assert_eq!(
-//             CSharpSession::new().safe_eval_statements("[lonG](97 + 3)").unwrap(),
-//             "100".to_string()
+//             CSharpSession::new().safe_eval_statements("[lonG](97 +
+// 3)").unwrap(),             "100".to_string()
 //         );
 //         assert_eq!(
 //             CSharpSession::new()
@@ -243,8 +243,8 @@ impl ArithmeticPred {
 //             "100.1".to_string()
 //         );
 //         assert_eq!(
-//             CSharpSession::new().safe_eval_statements("[char](97 + 1)").unwrap(),
-//             "b".to_string()
+//             CSharpSession::new().safe_eval_statements("[char](97 +
+// 1)").unwrap(),             "b".to_string()
 //         );
 //         assert_eq!(
 //             CSharpSession::new()
@@ -253,17 +253,18 @@ impl ArithmeticPred {
 //             "b".to_string()
 //         );
 //         assert_eq!(
-//             CSharpSession::new().safe_eval_statements("[bool]0.09874").unwrap(),
+//             
+// CSharpSession::new().safe_eval_statements("[bool]0.09874").unwrap(),
 //             "True".to_string()
 //         );
 //         assert_eq!(
-//             CSharpSession::new().safe_eval_statements(r#" [BOOl]"" "#).unwrap(),
-//             "False".to_string()
+//             CSharpSession::new().safe_eval_statements(r#" [BOOl]""
+// "#).unwrap(),             "False".to_string()
 //         );
 //         assert_eq!(
 //             CSharpSession::new()
-//                 .safe_eval_statements(r#" [Bool] @(1,2.3, "asdf", $null, $true) "#)
-//                 .unwrap()
+//                 .safe_eval_statements(r#" [Bool] @(1,2.3, "asdf", $null,
+// $true) "#)                 .unwrap()
 //                 .as_str(),
 //             "True"
 //         );
@@ -312,8 +313,8 @@ impl ArithmeticPred {
 //         );
 //         assert_eq!(
 //             CSharpSession::new()
-//                 .safe_eval_statements(r#" [string] @(1,2.3, "asdf", $null, $true) "#)
-//                 .unwrap()
+//                 .safe_eval_statements(r#" [string] @(1,2.3, "asdf", $null,
+// $true) "#)                 .unwrap()
 //                 .as_str(),
 //             "1 2.3 asdf  True"
 //         );
@@ -401,8 +402,8 @@ impl ArithmeticPred {
 //         );
 //         assert_eq!(
 //             CSharpSession::new()
-//                 .safe_eval_statements(r#" $a = [Float](70+44-44)+0.1;++$a;$a "#)
-//                 .unwrap()
+//                 .safe_eval_statements(r#" $a = [Float](70+44-44)+0.1;++$a;$a
+// "#)                 .unwrap()
 //                 .as_str(),
 //             "71.1"
 //         );
@@ -461,8 +462,8 @@ impl ArithmeticPred {
 //         );
 //         assert_eq!(
 //             CSharpSession::new()
-//                 .safe_eval_statements(r#" $a = [Float](70+44-44)+0.1;--$a;$a "#)
-//                 .unwrap()
+//                 .safe_eval_statements(r#" $a = [Float](70+44-44)+0.1;--$a;$a
+// "#)                 .unwrap()
 //                 .as_str(),
 //             "69.1"
 //         );
@@ -521,36 +522,36 @@ impl ArithmeticPred {
 //         );
 //         assert_eq!(
 //             CSharpSession::new()
-//                 .safe_eval_statements(r#" $a = [Float](70+44-44)+0.1;$b=$a++;$b "#)
-//                 .unwrap()
+//                 .safe_eval_statements(r#" $a =
+// [Float](70+44-44)+0.1;$b=$a++;$b "#)                 .unwrap()
 //                 .as_str(),
 //             "70.1"
 //         );
 //         assert_eq!(
 //             CSharpSession::new()
-//                 .safe_eval_statements(r#" $a = [StRing](70+44-44);$b=$a++;$b "#)
-//                 .unwrap()
+//                 .safe_eval_statements(r#" $a = [StRing](70+44-44);$b=$a++;$b
+// "#)                 .unwrap()
 //                 .as_str(),
 //             ""
 //         );
 //         assert_eq!(
 //             CSharpSession::new()
-//                 .safe_eval_statements(r#" $a = [cHar](70+44-44);$b=$a++;$b "#)
-//                 .unwrap()
+//                 .safe_eval_statements(r#" $a = [cHar](70+44-44);$b=$a++;$b
+// "#)                 .unwrap()
 //                 .as_str(),
 //             ""
 //         );
 //         assert_eq!(
 //             CSharpSession::new()
-//                 .safe_eval_statements(r#" $a = [bool](70+44-44);$b=$a++;$b "#)
-//                 .unwrap()
+//                 .safe_eval_statements(r#" $a = [bool](70+44-44);$b=$a++;$b
+// "#)                 .unwrap()
 //                 .as_str(),
 //             ""
 //         );
 //         assert_eq!(
 //             CSharpSession::new()
-//                 .safe_eval_statements(r#" $a = [array](70+44-44);$b=$a++;$b "#)
-//                 .unwrap()
+//                 .safe_eval_statements(r#" $a = [array](70+44-44);$b=$a++;$b
+// "#)                 .unwrap()
 //                 .as_str(),
 //             ""
 //         );
@@ -588,36 +589,36 @@ impl ArithmeticPred {
 //         );
 //         assert_eq!(
 //             CSharpSession::new()
-//                 .safe_eval_statements(r#" $a = [Float](70+44-44)+0.1;$b=$a--;$b "#)
-//                 .unwrap()
+//                 .safe_eval_statements(r#" $a =
+// [Float](70+44-44)+0.1;$b=$a--;$b "#)                 .unwrap()
 //                 .as_str(),
 //             "70.1"
 //         );
 //         assert_eq!(
 //             CSharpSession::new()
-//                 .safe_eval_statements(r#" $a = [StRing](70+44-44);$b=$a--;$b "#)
-//                 .unwrap()
+//                 .safe_eval_statements(r#" $a = [StRing](70+44-44);$b=$a--;$b
+// "#)                 .unwrap()
 //                 .as_str(),
 //             ""
 //         );
 //         assert_eq!(
 //             CSharpSession::new()
-//                 .safe_eval_statements(r#" $a = [cHar](70+44-44);$b=$a--;$b "#)
-//                 .unwrap()
+//                 .safe_eval_statements(r#" $a = [cHar](70+44-44);$b=$a--;$b
+// "#)                 .unwrap()
 //                 .as_str(),
 //             ""
 //         );
 //         assert_eq!(
 //             CSharpSession::new()
-//                 .safe_eval_statements(r#" $a = [bool](70+44-44);$b=$a--;$b "#)
-//                 .unwrap()
+//                 .safe_eval_statements(r#" $a = [bool](70+44-44);$b=$a--;$b
+// "#)                 .unwrap()
 //                 .as_str(),
 //             ""
 //         );
 //         assert_eq!(
 //             CSharpSession::new()
-//                 .safe_eval_statements(r#" $a = [array](70+44-44);$b=$a--;$b "#)
-//                 .unwrap()
+//                 .safe_eval_statements(r#" $a = [array](70+44-44);$b=$a--;$b
+// "#)                 .unwrap()
 //                 .as_str(),
 //             ""
 //         );

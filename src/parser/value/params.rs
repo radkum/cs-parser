@@ -56,7 +56,11 @@ pub struct FunctionHeader {
 
 impl FunctionHeader {
     pub fn new(name: String, params: Vec<Param>, is_static: bool) -> Self {
-        Self { name, params, is_static }
+        Self {
+            name,
+            params,
+            is_static,
+        }
     }
 
     pub fn name(&self) -> &str {
