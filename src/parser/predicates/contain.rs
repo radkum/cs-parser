@@ -152,19 +152,11 @@ pub fn cnotcontains(a: Val, b: Val) -> bool {
 //         );
 //         assert_eq!(
 //             p.safe_eval_statements(r#" (("True1", "1"), 2) -contains ($true,
-// 1) "#)                 .unwrap(),
-//             "False".to_string()
-//         );
-//         assert_eq!(
-//             p.safe_eval_statements(r#" "3", "1" -contains 1 "#).unwrap(),
-//             "True".to_string()
-//         );
-//         assert_eq!(
-//             p.safe_eval_statements(r#" "1" -contains 1 "#).unwrap(),
-//             "True".to_string()
-//         );
-//         assert_eq!(
-//             p.safe_eval_statements(r#" "true", "1" -icontains $true
+// 1) "#)                 .unwrap(), "False".to_string() ); assert_eq!(
+//    p.safe_eval_statements(r#" "3", "1" -contains 1 "#).unwrap(),
+//    "True".to_string() ); assert_eq!( p.safe_eval_statements(r#" "1" -contains
+//    1 "#).unwrap(), "True".to_string() ); assert_eq!(
+//    p.safe_eval_statements(r#" "true", "1" -icontains $true
 // "#).unwrap(),             "True".to_string()
 //         );
 //         assert_eq!(

@@ -23,7 +23,9 @@ impl RuntimeTypeTrait for StringBuilderType {
             match &args[0] {
                 Val::String(PsString(s)) => {
                     let buffer = s.as_bytes().to_vec();
-                    return Ok(Val::RuntimeObject(Box::new(StringBuilder { buffer })));
+                    let x = Ok(Val::RuntimeObject(Box::new(StringBuilder { buffer })));;
+                    //println!("StringBuilder initialized with string: {:?}", x);
+                    return x;
                 }
                 Val::Int(size) => {
                     let capacity = *size as usize;
@@ -76,6 +78,7 @@ impl std::fmt::Display for StringBuilder {
 
 impl RuntimeObjectTrait for StringBuilder {
     fn method(&self, method_name: MethodName) -> RuntimeResult<MethodCallType> {
+        println!("StringBuilder method called: {}", method_name.name());
         match method_name.name() {
             "Append" => Ok(Box::new(append)),
             "toString" => Ok(Box::new(to_string)),

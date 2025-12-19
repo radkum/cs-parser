@@ -253,7 +253,7 @@ impl ArithmeticPred {
 //             "b".to_string()
 //         );
 //         assert_eq!(
-//             
+//
 // CSharpSession::new().safe_eval_statements("[bool]0.09874").unwrap(),
 //             "True".to_string()
 //         );

@@ -593,6 +593,7 @@ impl<'a> CSharpSession {
                 let token = token.into_inner().next().unwrap();
                 //todo: throw, return or exit
                 let val = if let Some(expression_token) = token.into_inner().next() {
+                    println!("Evaluating flow control expression: {}", expression_token.as_str());
                     self.eval_expression(expression_token)
                 } else {
                     Ok(Val::Null)
@@ -868,7 +869,8 @@ impl<'a> CSharpSession {
     fn eval_code_line(&mut self, token: Pair<'a>) -> ParserResult<Val> {
         check_rule!(token, Rule::code_line);
         let inner_token = token.into_inner().next().unwrap();
-        match inner_token.as_rule() {
+        println!("Evaluating code line: {}", inner_token.as_str());
+        let x = match inner_token.as_rule() {
             Rule::assignment_exp => self.eval_assignment_exp(inner_token),
             Rule::field_initialization => {
                 let _ = self.parse_field_initialization(inner_token);
@@ -880,7 +882,10 @@ impl<'a> CSharpSession {
             }
             Rule::expression => self.eval_expression(inner_token),
             _ => unexpected_token!(inner_token),
-        }
+        };
+        println!("Eval code line result: {:?}", x);
+        println!("Eval code line result: {:?}", self.variables.script_scope());
+        x
     }
 
     fn parse_try_statement(&mut self, token: Pair<'a>) -> ParserResult<()> {

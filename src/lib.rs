@@ -292,12 +292,12 @@ mod tests {
     //             p.parse_input("$nesteddata.settings").unwrap().result(),
     //             PsValue::HashTable(HashMap::from([
     //                 ("language".to_string(),
-    // PsValue::String("en-US".to_string())),                 
-    // ("theme".to_string(), PsValue::String("Dark".to_string())),             
+    // PsValue::String("en-US".to_string())),
+    // ("theme".to_string(), PsValue::String("Dark".to_string())),
     // ]))         );
 
     //         assert_eq!(
-    //             
+    //
     // p.safe_eval_statements("$nesteddata.settings.theme").unwrap().to_string().
     // as_str(),             "Dark"
     //         );
@@ -318,13 +318,13 @@ mod tests {
     //         );
 
     //         assert_eq!(
-    //             
+    //
     // p.safe_eval_statements("$nesteddata.users[0]['name']").unwrap().to_string().
     // as_str(),             "Alice"
     //         );
 
     //         assert_eq!(
-    //             
+    //
     // p.safe_eval_statements("$nesteddata.users[0].NAME").unwrap().to_string().
     // as_str(),             "Alice"
     //         );
@@ -411,7 +411,7 @@ mod tests {
     //                 };
 
     //                 let Ok(expected_output) =
-    // fs::read_to_string(&expected_output_script) else {                     
+    // fs::read_to_string(&expected_output_script) else {
     // panic!(                         "Failed to read test file: {}",
     //                         expected_output_script.display()
     //                     );
@@ -1213,11 +1213,9 @@ namespace Test
         let input = r#"
 namespace Editor {
     public static class Methods {
-        private static string Transform(string input) {
-            return input+"Content";
-        }
-        private static string Transform2(string input) {
-            StringBuilder builder = new StringBuilder(input + "Content");    
+        
+        private static string Transform2(string in) {
+            StringBuilder builder = new StringBuilder(in + "Content");    
 
             return builder.ToString();
         }
@@ -1228,6 +1226,7 @@ namespace Editor {
 }"#;
 
         let program_res = p.parse_input(input).unwrap();
+        println!("Erros: {:?}", program_res.errors());
         println!("{:?}", program_res.tokens());
         assert!(program_res.tokens().string_set().contains("ScanContent"));
         assert!(
