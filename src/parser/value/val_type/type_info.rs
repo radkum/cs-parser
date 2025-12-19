@@ -1,4 +1,6 @@
 use super::{RuntimeTypeTrait, ValType};
+use super::Val;
+use crate::parser::ParserResult;
 
 #[derive(Debug)]
 pub(crate) struct TypeInfo {
@@ -10,14 +12,9 @@ pub(crate) struct TypeInfo {
 
 impl std::fmt::Display for TypeInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "IsPublic\tIsSerial\tName\tBaseType")?;
-        writeln!(f, "--------\t--------\t----\t--------")?;
         write!(
             f,
-            "{:>8}\t{:>8}\t{:>4}\t{:>8}",
-            self.is_public,
-            self.is_serial,
-            self.name,
+            "{}",
             self.base_type.name()
         )
     }

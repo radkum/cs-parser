@@ -1,7 +1,7 @@
 use super::{MethodResult, Val, *};
-use crate::parser::value::{MethodError, PsString};
-pub type MethodCallType = Box<dyn FnMut(&mut Val, Vec<Val>) -> MethodResult<Val>>;
-pub type StaticFnCallType = Box<dyn FnMut(Vec<Val>) -> MethodResult<Val>>;
+use crate::{CSharpSession, parser::value::{MethodError, PsString}};
+pub type MethodCallType<'a> = Box<dyn FnMut(&mut Val, Vec<Val>, &'a mut CSharpSession) -> MethodResult<Val>>;
+pub type StaticFnCallType<'a> = Box<dyn FnMut(Vec<Val>, &'a mut CSharpSession) -> MethodResult<Val>>;
 use thiserror_no_std::Error;
 
 use super::val_type::type_info::RuntimeType;
@@ -48,7 +48,7 @@ pub(crate) trait RuntimeObjectTrait: std::fmt::Debug + std::fmt::Display {
 }
 
 impl Val {
-    fn get_type(&mut self, _: Vec<Val>) -> MethodResult<Val> {
+    fn get_type(&mut self, _: Vec<Val>, _: &mut CSharpSession) -> MethodResult<Val> {
         Ok(Val::RuntimeType(self.type_definition()))
     }
 }
@@ -77,7 +77,7 @@ impl RuntimeObjectTrait for Val {
         // first check the members
         match self {
             Val::HashTable(hashtable) => hashtable
-                .get_mut(&name.to_ascii_lowercase())
+                .get_mut(name)
                 .ok_or_else(|| RuntimeError::MemberNotFound(name.to_string())),
             Val::RuntimeObject(ps) => ps.member(name),
             _ => Err(RuntimeError::MemberNotFound(name.to_string())),
@@ -87,12 +87,6 @@ impl RuntimeObjectTrait for Val {
     fn readonly_member(&mut self, name: &str) -> RuntimeResult<Val> {
         // first check the members
         match self {
-            Val::HashTable(ps) => {
-                return Ok(ps
-                    .get(&name.to_ascii_lowercase())
-                    .cloned()
-                    .unwrap_or_default());
-            }
             Val::RuntimeType(ps) => return ps.readonly_member(name),
             Val::RuntimeObject(ps) => return ps.readonly_member(name),
             _ => {}
@@ -135,12 +129,12 @@ mod tests {
 
     #[test]
     fn get_type() {
-        let mut p = CSharpSession::new().with_variables(Variables::env());
+        let mut p = CSharpSession::new();
 
         let input = r#" $a = ,('m',1234,'s');$a.gettype() "#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::String(
                 "IsPublic\tIsSerial\tName\tBaseType\n--------\t--------\t----\t--------\n    \
                  true\t    true\tObject[]\t   Array"
@@ -149,8 +143,8 @@ mod tests {
         );
 
         let input = r#" $a = ,('m',1234,'s');function Foo($x) { $x[0].GetType().name + $x[2]}; $b = (Foo(1,2,3));$b "#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::String("Int323".into()));
+        let program_res = p.parse_input(input).unwrap();
+        assert_eq!(program_res.result(), PsValue::String("Int323".into()));
 
         //this like return "a" + "msi" ".dll", object. However EDR may detect such
         // strings as suspicious, so we test little different string: "assi.dll"
@@ -159,7 +153,7 @@ mod tests {
         // +$a[0][2]+(Foo(1,2,3))[0]+([string]$a.gettype())[6]+[char](97+3)
         // +[string][char]((54) | ForEach-Object { $_*2 })*2;$b "#;
         let input = r#" $a = ,('m',1234,'s');function Foo($x) { $x[0].GetType().name + $x[2]}; $b = $a.gettype()[0].basetype.name[0] +$a[0][2] +$a[0][2]+(Foo(1,2,3))[0]+([string]$a.gettype())[6]+[char](97+3) +[string][char]((54) | ForEach-Object { $_*2 })*2;$b "#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::String("AssI.dll".into()));
+        let program_res = p.parse_input(input).unwrap();
+        assert_eq!(program_res.result(), PsValue::String("AssI.dll".into()));
     }
 }

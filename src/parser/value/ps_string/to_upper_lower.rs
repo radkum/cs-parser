@@ -45,9 +45,9 @@ mod tests {
 $string = 'Hello, World*'
 $string = $string.toupper()
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::String("HELLO, WORLD*".to_string())
         );
 
@@ -55,9 +55,9 @@ $string"#;
 $string = 'Hello, World*'
 $string = $string.toupperinvariant()
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::String("HELLO, WORLD*".to_string())
         );
 
@@ -65,9 +65,9 @@ $string"#;
 $string = 'Hello, World*'
 $string = $string.toupper("adf")
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::String("HELLO, WORLD*".to_string())
         );
 
@@ -75,13 +75,13 @@ $string"#;
 $string = 'Hello, World*'
 $string = $string.toupperinvariant("adf")
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::String("\"Hello, World*\".toupperinvariant(\"adf\")".to_string())
         );
         assert_eq!(
-            script_res.errors()[0].to_string(),
+            program_res.errors()[0].to_string(),
             "MethodError: Incorrect arguments \"[\"String(PsString(\\\"adf\\\"))\"]\" for method \
              \"toUpperInvariant\""
                 .to_string()
@@ -95,9 +95,9 @@ $string"#;
 $string = 'HELLO, world*'
 $string = $string.tolower()
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::String("hello, world*".to_string())
         );
 
@@ -105,9 +105,9 @@ $string"#;
 $string = 'HELLO, world*'
 $string = $string.tolowerinvariant()
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::String("hello, world*".to_string())
         );
 
@@ -115,9 +115,9 @@ $string"#;
 $string = 'HELLO, world*'
 $string = $string.tolower(', world')
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::String("hello, world*".to_string())
         );
 
@@ -125,13 +125,13 @@ $string"#;
 $string = 'HELLO, world*'
 $string = $string.tolowerinvariant('hed')
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::String("\"HELLO, world*\".tolowerinvariant(\"hed\")".to_string())
         );
         assert_eq!(
-            script_res.errors()[0].to_string(),
+            program_res.errors()[0].to_string(),
             "MethodError: Incorrect arguments \"[\"String(PsString(\\\"hed\\\"))\"]\" for method \
              \"toLowerInvariant\""
                 .to_string()

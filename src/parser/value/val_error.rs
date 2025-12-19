@@ -27,6 +27,9 @@ pub enum ValError {
 
     #[error("Cannot index into a null array")]
     IndexedNullArray,
+
+    #[error("Invalid argument count. Expected {0}, found {1}")]
+    InvalidArgumentCount(usize, usize),
 }
 
 impl From<RuntimeError> for ValError {

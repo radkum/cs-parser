@@ -4,23 +4,22 @@ COMMENT = _{ single_line_comment | block_comment }
 line_continuation = { "`" ~ NEWLINE }
 WHITESPACE     = _{ " " | "\t" | line_continuation | NEWLINE }
 
-program = { SOI ~ using_statement* ~ ( namespace | class_statement )+ ~ EOI }
-
-namespace = { "namespace" ~ var_name ~ statement_block }
+program = { SOI ~ program_content ~ EOI }
+program_content = { (namespace_statement | class_statement | using_statement | enum_statement | function_declaration)* }
+namespace_statement = { "namespace" ~ var_name ~ (";" | statement_body) }
+statement_body = _{ "{" ~ program_content ~ "}" ~ ";"? }
 using_statement = { "using" ~  member_chain ~ ";"* }
-
 
 static_const_attribute = { "static" | "const" }
 extern_attribute = { "extern" }
 readonly_attribute = { "readonly" }
-field_hidden = {new_keyword}
+field_hidden = { "new" }
 field_attribute = {attribute_list? ~ access_modifier? ~ (field_hidden | static_const_attribute | readonly_attribute | extern_attribute)* }
-new_keyword = { "new" }
-new_expression = { new_keyword ~ type_literal}
-new_list_initialization = { new_keyword ~ type_literal? ~ (initializer_list | curly_arg_list | bracket_arg_list) }
-new_with_constructor = {new_keyword ~ type_literal ~ parenthesis_arg_list ~ initializer_list?}
-right_assignment_exp = { new_list_initialization | new_with_constructor | new_expression | expression }
-assignment_exp = { assignable_variable ~ assignement_op ~ right_assignment_exp }
+new_expression = { "new" ~ (list_initialization | constructor )}
+list_initialization = { type_literal? ~ (initializer_list | curly_arg_list | bracket_arg_list) }
+constructor = {type_literal ~ parenthesis_arg_list? ~ initializer_list?}
+
+assignment_exp = { assignable_variable ~ assignment_op ~ expression }
 field_declaration = { field_attribute ~ type_literal ~ assignable_variable  }
 field_initialization = { field_attribute ~ type_literal ~ assignment_exp}
 code_line = { (assignment_exp | field_initialization | field_declaration | expression) ~ ";" }
@@ -33,15 +32,15 @@ fn_parameter_default = { "=" ~ primary_expression }
 named_blocks = { named_block+ }
 named_block = { block_name ~ statement_block }
 block_name = { ^"dynamicparam" | ^"begin" | ^"process" | ^"end" }
-statement_block = { "{" ~ statement* ~ "}" }
+statement_block = { "{" ~ statements ~ "}" }
 statements = { statement* }
 
 //------------------------------------- STATEMENTS
 statement = _{ 
 	if_statement 
     | labeled_statement
-    | function_statement
-    | function_declaration 
+    | function_statement 
+    | function_declaration
     | class_statement
     | enum_statement
     | flow_control_statement
@@ -49,7 +48,7 @@ statement = _{
     | code_line
     | statement_terminator
 }
-statement_terminator = { (";" | NEWLINE)+ }
+statement_terminator = { ";"+ }
 
 if_statement = {
     ^"if" ~ "(" ~ expression ~ ")"  ~ (statement_block | statement) ~ elseif_clauses? ~ else_condition?
@@ -98,13 +97,10 @@ for_condition   = { expression }
 for_iterator    = { expression }
 
 //---------------------------------- OTHER STATEMENTS
-return_type = {type_literal}
-function_statement = {
-    function_header ~ statement_block
-}
-function_declaration = {function_header ~ ";"*}
+return_type = _{type_literal}
+function_statement = { function_header ~ statement_block }
+function_declaration = { function_header ~ ";" }
 function_header = { function_header_prefix ~ return_type ~ function_name ~ function_parameter_declaration }
-function_keyword = { ^"function" | ^"filter" | ^"workflow" }
 function_name = @{ generic_token }
 function_parameter_declaration = _{ "(" ~ parameter_list? ~ ")" }
 
@@ -112,7 +108,7 @@ flow_control_statement = {
     flow_control_label_statement
   | flow_control_expression_statement
 }
-flow_control_label_statement = { break_statement | continue_statement }
+flow_control_label_statement = _{ break_statement | continue_statement }
 break_statement = { "break" ~ label_exp? }
 continue_statement = { "continue" ~ label_exp? }
 
@@ -129,7 +125,7 @@ catch_type_list = { "(" ~ field_declaration ~ ")" }
 finally_clause = { "finally" ~ statement_block }
 
 //--------------------------------- CLASS STATEMENTS
-function_attribute = { "static" | "hidden" | "virtual" | "override" | "extern" | "readonly" }
+function_attribute = { "delegate" | "static" | "hidden" | "virtual" | "override" | "extern" | "readonly" }
 function_attributes = { function_attribute+ }
 function_header_prefix = {
     attribute_list? ~
@@ -148,14 +144,18 @@ inheritance = { ":" ~ simple_name ~ ("," ~ simple_name)* }
 
 class_statement = {
    function_header_prefix ~ 
-   ("class" | "struct") ~ simple_name ~ inheritance? ~ "{"
-   ~ (function_statement | function_declaration | field_declaration | field_initialization)*
-   ~ "}"
+   ("class" | "struct") ~ simple_name ~ inheritance? ~ (statement_terminator | class_body)
 }
+class_body = { 
+    "{"
+   ~ (function_statement | function_declaration | ((field_initialization | field_declaration) ~ ";"))*
+   ~ "}" ~ ";"? 
+   }
 
-access_modifier = { new_keyword? ~ ("public" | "private" | "protected" | "internal") }
+access_modifier = { "new"? ~ ("public" | "private" | "protected" | "internal") }
 // -----------------------ENUM
-enum_statement = { function_header_prefix  ~ "enum" ~ simple_name ~ inheritance? ~ "{" ~ assignment_exp ~("," ~ assignment_exp)* ~ "}" }
+enum_statement = { function_header_prefix  ~ "enum" ~ simple_name ~ inheritance? ~ (statement_terminator | enum_body) }
+enum_body = { "{" ~ assignment_exp ~("," ~ assignment_exp)* ~ "}" ~ ";"? }
 enum_member = { simple_name ~ (("=" ~ decimal_integer) | ("=" ~ hex_integer) )? }
 
 // ---------------------- EXPRESSION
@@ -208,7 +208,8 @@ cast_expression = { !WHITESPACE ~ cast_literal ~(unary_exp | parenthesized_expre
 
 //------------------------------------PRIMARY EXPRESSION
 primary_expression = {
-    value_access
+    new_expression
+    | value_access
     | post_inc_expression
     | post_dec_expression
     | value 
@@ -221,20 +222,18 @@ value_access = { value ~
         parenthesis_arg_list
         | method_invocation
         | member_access
-        | static_access
         | element_access
     )+
 }
 member_access = { "." ~ member_name }
-static_access = { "::" ~ member_name }
 member_name = {
     simple_name
 }
 element_access = { "[" ~ expression ~ "]" }
-method_invocation = { (member_access | static_access) ~ parenthesis_arg_list }
-parenthesis_arg_list = { "(" ~ argument_list? ~ ")" }
-curly_arg_list = { "{" ~ argument_list? ~ "}" }
-bracket_arg_list = { "[" ~ argument_list? ~ "]" }
+method_invocation = { member_access ~ parenthesis_arg_list }
+parenthesis_arg_list = _{ "(" ~ argument_list? ~ ")" }
+curly_arg_list = _{ "{" ~ argument_list? ~ "}" }
+bracket_arg_list = _{ "[" ~ argument_list? ~ "]" }
 
 // --------------- EXPRESSION
 assignable_variable = { variable_access | value_access | variable}
@@ -242,13 +241,12 @@ member_chain = @{ member_name ~ member_access*}
 variable_access = { variable ~ 
     (
         member_access
-        | static_access
         | element_access
     )+
 }
 prefix_assign_op = { (additive_op | multiplicative_op) }
 assign_op = { "=" }
-assignement_op = {prefix_assign_op? ~ assign_op }
+assignment_op = {prefix_assign_op? ~ assign_op }
 
 // ---------------- COMMAND
 command = ${(
@@ -273,7 +271,6 @@ command_parameter = @{
     "-"+ ~ command_parameter_chars+
     | "--"
 }
-splatten_arg = ${ "@" ~ (scope_keyword ~ ":")? ~ var_name }
 
 command_parameter_chars = _{ ASCII_ALPHA | ASCII_DIGIT | "_" | "?" | "-" | "`" }
 stop_parsing = @{ "--%" ~ (!(NEWLINE) ~ ANY)* }
@@ -300,7 +297,6 @@ SECOND_FORBIDDEN_CHARS = _{
 
 extra_command_token = {
       immediate_chars
-    | doublequoted_string_literal
     | "\"\""
     | "''" 
 }
@@ -324,17 +320,17 @@ simple_operator = _{ "-" | "+" | "*" | "/" | "%" }
 
 value = {
     parenthesized_expression
-    | sub_expression 
     | hash_literal_expression 
     | literal 
+    | predefined_variable
     | variable
 }
 parenthesized_expression = !{ "(" ~ expression ~ ")"}
-sub_expression = !{ "$(" ~ expression? ~ ")" }
+sub_expression = !{ "{" ~ expression ~ "}" }
 
 hash_literal_expression = { "@{" ~ hash_literal_body? ~ "}" }
 hash_literal_body = _{ hash_entry* }
-hash_entry = { key_expression ~ "=" ~ statement ~ ";"*}
+hash_entry = { key_expression ~ "=" ~ expression ~ ";"*}
 
 list_entry = { key_expression ~ "=" ~ expression }
 initializer_list = { "{" ~ list_entry ~ ("," ~ list_entry)* ~ "}" }
@@ -342,17 +338,15 @@ initializer_list = { "{" ~ list_entry ~ ("," ~ list_entry)* ~ "}" }
 dictionary_string = { "[" ~ string_literal ~"]"}
 key_expression = { simple_name | unary_exp | dictionary_string }
 
-//variable = { "ref"? ~ var_name }
-variable = { "true" | "false" | var_name }
+variable = { "ref"? ~ var_name }
+true_literal = @{ "true" }
+false_literal = @{ "false" }
+null_literal = @{ "null" }
+predefined_variable = { true_literal | false_literal | null_literal}
 
 parenthesized_variable = { "(" ~ variable ~ ")" }
-special_variable = { "$$" | "$^" | "$?" | "$_" }
-scoped_variable = { "$" ~ (scope_keyword ~ ":")? ~ var_name }
-braced_variable = { "${" ~ braced_variable_content ~ "}" }
 
 var_name = @{ identifier }
-scope_keyword = { ^"global" | ^"local" | ^"private" | ^"script" | ^"using" | ^"workflow" | ^"env" | ^"alias" | ^"function" | ^"variable" }
-braced_variable_content = @{ (!"}" ~ ANY)+ }
 
 argument_list      = { arg ~ ("," ~ arg)* }
 arg = _{ named_arg | simple_arg  }
@@ -382,23 +376,30 @@ quoted_string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 ampersand_chunk = @{ "&" ~ (!"&" ~ ANY)* }
 generic_verbatim_chunk = @{ (!("|" | "\r" | "\n") ~ ANY)+ }
 
+//----------------------LITERAL
+literal = _{
+	number_literal
+    | string_literal
+    | char_literal
+}
+
 //--------------------STRING LITERAL
 string_literal = {
-    doublequoted_string_literal
-  | singlequoted_string_literal
-  | doublequoted_multiline_string_literal
-  | singlequoted_multiline_string_literal
+    simple_string_literal // "elo"
+  | verbatim_string_literal // @"elo "" "
+  | interpolated_string_literal // $"Value is {x}"
+  | in_verbatim_string_literal // $@"Value is {x}"
+  | raw_string_literal // """ asdafd """
 }
 
-doublequoted_string_literal = ${
-	 "\""  ~ dq_string_content* ~ "\""
+interpolated_string_literal = ${
+	 "$\""  ~ in_string_content* ~ "\""
 }
 
-dq_string_content = ${
+in_string_content = _{
       dq_escape
-    | variable
-    | dq_text_chunk
     | sub_expression
+    | dq_text_chunk
     | dollar_escape
     | backtick_escape
     | WHITESPACE
@@ -408,51 +409,47 @@ dq_escape = @{ "\"\"" }
 dollar_escape = @{ "$" ~ (backtick_escape | "\\" )? }
 backtick_escape = @{ "`" ~ non_whitespace_char ? } // handle backtick+char like `n
 non_whitespace_char  = { !WHITESPACE ~ ANY }
-dq_text_chunk = { (!("$" | "\"" | "`") ~ ANY)+ }
+dq_text_chunk = { (!("$" | "\"" | "`" | "{") ~ ANY)+ }
 
-doublequoted_multiline_string_literal = @{
-    dq_multiline_string_start ~ dq_multiline_content* ~ dq_multiline_string_end
+verbatim_string_literal = _{
+    "@\""  ~ verbatim_content ~ "\""
 }
-dq_multiline_content = ${
-	variable
-    | sub_expression
+verbatim_content = @{verbatim_content_char*}
+verbatim_content_char = @{ "\"\"" | ((!("\"" | "\r" | "\n") ~ ANY)+) | verbatim_text_newline }
+verbatim_text_newline = {NEWLINE ~ !"'@"}
+
+in_verbatim_string_literal = @{
+    "$@\"" ~ in_verbatim_content* ~ "\""
+}
+in_verbatim_content = _{
+    sub_expression
     | backtick_escape
     | dollar_escape
-    | dq_ml_text_chunk
-    | dq_newline
+    | in_verbatim_text_chunk
 }
-dq_newline = {NEWLINE ~ !"\"@"}
-dq_multiline_string_start = @{ "@\"" ~ NEWLINE }
-dq_ml_text_chunk = ${ (!("\"@" | "$" | "`" | NEWLINE) ~ ANY)+ }
-dq_multiline_string_end = @{ NEWLINE ~ "\"@" }
+in_verbatim_text_chunk = ${ "\"\"" | (!("\"" | "$" | "`" | "{" ) ~ ANY)+ }
 
-singlequoted_string_literal = @{ "'" ~ sq_string_content* ~ "'" }
-sq_string_content = _{ "''" | (!"'" ~ ANY)+ }
-
-singlequoted_multiline_string_literal = ${
-    sq_multiline_start ~ sq_multiline_content*  ~ sq_multiline_end
+raw_string_literal_token = _{"\"\"\""}
+raw_string_literal = ${
+    (raw_string_literal_token ~ NEWLINE) ~ raw_string_literal_content ~ (NEWLINE ~ raw_string_literal_token)
 }
+raw_string_literal_content = { (!(NEWLINE ~ raw_string_literal_token) ~ ANY)+ }
+simple_string_literal = _{ "\"" ~ simple_string_content ~ "\"" }
+simple_string_content = @{ ("\"\"" | (!"\"" ~ ANY)+)* }
 
-sq_multiline_start = _{ "@'" ~ NEWLINE }
-sq_multiline_content = @{ ((!("'@" | "\r" | "\n") ~ ANY)+) | sq_newline }
-sq_multiline_end = _{ NEWLINE ~ "'@" }
-sq_newline = {NEWLINE ~ !"'@"}
+//----------------------CHAR LITERAL
+char_literal = @{ "'" ~ (!"'" ~ ANY) ~ "'" }
 
-//----------------------LITERAL
-literal = _{
-	number_literal
-    | string_literal 
-}
+//----------------------NUMBER LITERAL
 suffix = { ^"u" | ^"f" | ^"l" | ^"d" | ^"m" }
 number_literal = { additive_op? ~ number ~ suffix* }
 
 number = ${ float | hex_integer| binary_integer| decimal_integer }
 
-decimal_int = @{ ASCII_DIGIT ~ ("_" | ASCII_DIGIT)* ~ !"_" }
+decimal_integer = @{ ASCII_DIGIT ~ ("_" | ASCII_DIGIT)* ~ !"_" }
 hex_int = @{ HEX_DIGIT ~ ("_" | HEX_DIGIT)* ~ !"_" }
 bin_int = @{ BIN_DIGIT ~ ("_" | BIN_DIGIT)* ~ !"_" }
 BIN_DIGIT = @{"0" | "1"}
-decimal_integer = _{ decimal_int }
 hex_integer = { ^"0x" ~ hex_int}
 binary_integer = { ^"0b" ~ bin_int }
 float = {float_1 | float_2 | float_3}
@@ -466,7 +463,7 @@ float_mantis = {^"e" ~ ("+" | "-") ~ ASCII_DIGIT+}
 cast_literal = { "(" ~ type_literal ~ ")" }
 type_name = @{ type_identifier ~ ("." ~ type_identifier)* }
 type_identifier = @{ (ASCII_ALPHANUMERIC | "_")+ }
-type_literal = @{ dimensions |
+type_literal = ${ dimensions |
       (type_name ~ generic_type? ~ dimensions?)
 }
 dimensions = { dimension+ }
@@ -477,7 +474,7 @@ dimension = { "[" ~ decimal_integer? ~ "]" }
 //-----------------------ATTRIBUTES
 attribute_list       = { attribute+ }
 attribute            = { "[" ~ attribute_name ~ ("(" ~ attribute_arguments? ~ ")")? ~ "]"}
-attribute_name       = { member_chain }
+attribute_name       = _{ member_chain }
 attribute_arguments  = { attribute_argument ~ ("," ~ attribute_argument)* }
 attribute_argument   = { (expression ~ ("=" ~ expression)?) }
 

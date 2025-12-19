@@ -54,9 +54,9 @@ function Add-Numbers($a, $b) {
 "#;
 
         let mut session = CSharpSession::new();
-        let script_result = session.parse_input(input).unwrap();
-        assert_eq!(script_result.result(), PsValue::Int(15));
-        assert_eq!(script_result.deobfuscated(), deobfuscated.trim());
+        let program_result = session.parse_input(input).unwrap();
+        assert_eq!(program_result.result(), PsValue::Int(15));
+        assert_eq!(program_result.deobfuscated(), deobfuscated.trim());
     }
 
     #[test]
@@ -78,10 +78,10 @@ function Get-Greeting($name = "World") {
 "#;
 
         let mut session = CSharpSession::new();
-        let script_result = session.parse_input(input).unwrap();
-        assert_eq!(script_result.deobfuscated().trim(), deobfuscated.trim());
+        let program_result = session.parse_input(input).unwrap();
+        assert_eq!(program_result.deobfuscated().trim(), deobfuscated.trim());
         assert_eq!(
-            script_result.result(),
+            program_result.result(),
             PsValue::String("Hello, Alice!".into())
         );
     }
@@ -100,9 +100,9 @@ function Test-Empty() {
         "#;
 
         let mut session = CSharpSession::new();
-        let script_result = session.parse_input(input).unwrap();
-        assert_eq!(script_result.deobfuscated().trim(), deobfuscated.trim());
-        assert_eq!(script_result.result(), PsValue::Null);
+        let program_result = session.parse_input(input).unwrap();
+        assert_eq!(program_result.deobfuscated().trim(), deobfuscated.trim());
+        assert_eq!(program_result.result(), PsValue::Null);
     }
 
     #[test]
@@ -142,8 +142,8 @@ function Test-Parameters {
 "#;
 
         let mut session = CSharpSession::new();
-        let script_result = session.parse_input(input).unwrap();
-        assert_eq!(script_result.deobfuscated().trim(), deobfuscated.trim());
+        let program_result = session.parse_input(input).unwrap();
+        assert_eq!(program_result.deobfuscated().trim(), deobfuscated.trim());
     }
 
     #[test]
@@ -156,8 +156,8 @@ function Test-Parameters {
 
         let mut session = CSharpSession::new();
         let _ = session.parse_input(input).unwrap();
-        let script_result = session.parse_input("Add-Numbers 5 10").unwrap();
-        assert_eq!(script_result.result(), PsValue::Int(15));
+        let program_result = session.parse_input("Add-Numbers 5 10").unwrap();
+        assert_eq!(program_result.result(), PsValue::Int(15));
     }
 
     // #[test]
@@ -171,13 +171,13 @@ function Test-Parameters {
 
     //     let mut session = CSharpSession::new();
     //     let _ = session.parse_input(input).unwrap();
-    //     let script_result = session.parse_input("0..10 |
-    // Get-Numbers").unwrap();     assert_eq!(script_result.deobfuscated(),
+    //     let program_result = session.parse_input("0..10 |
+    // Get-Numbers").unwrap();     assert_eq!(program_result.deobfuscated(),
     // "0 1 2 3 4 5 6 7 8 9 10");
 
-    //     let script_result = session
+    //     let program_result = session
     //         .parse_input("0..10 | Get-Numbers -EvenOnly")
     //         .unwrap();
-    //     assert_eq!(script_result.deobfuscated(), "0 2 4 6 8 10");
+    //     assert_eq!(program_result.deobfuscated(), "0 2 4 6 8 10");
     // }
 }

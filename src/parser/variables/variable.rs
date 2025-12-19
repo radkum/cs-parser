@@ -24,7 +24,6 @@ impl std::fmt::Display for VarName {
                 Scope::Global => write!(f, "$global:{}", self.name),
                 Scope::Local => write!(f, "$local:{}", self.name),
                 Scope::Env => write!(f, "$env:{}", self.name),
-                Scope::Special => write!(f, "{}", self.name),
                 Scope::Script => write!(f, "$script:{}", self.name),
             }
         } else {
@@ -35,7 +34,6 @@ impl std::fmt::Display for VarName {
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone)]
 pub(crate) enum Scope {
-    Special,
     Global,
     Script,
     Local,
@@ -48,7 +46,6 @@ impl std::fmt::Display for Scope {
             Scope::Global => write!(f, "global"),
             Scope::Local => write!(f, "local"),
             Scope::Env => write!(f, "env"),
-            Scope::Special => write!(f, "special"),
             Scope::Script => write!(f, "script"),
         }
     }

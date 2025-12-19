@@ -1,6 +1,6 @@
 use std::{collections::BTreeSet, fmt::Display};
 
-use super::script_result::PsValue;
+use super::program_result::PsValue;
 
 /// Represents a parsed PowerShell method call token.
 ///

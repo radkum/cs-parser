@@ -87,16 +87,16 @@ mod tests {
 $string = 'hello, world'
 $string = $string.trim(', world')
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::String("he".to_string()));
+        let program_res = p.parse_input(input).unwrap();
+        assert_eq!(program_res.result(), PsValue::String("he".to_string()));
 
         let input = r#"
 $string = 'hello, world'
 $string = $string.trim('hed')
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::String("llo, worl".to_string())
         );
 
@@ -104,9 +104,9 @@ $string"#;
 $string = 'hello, world '
 $string = $string.trim()
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::String("hello, world".to_string())
         );
     }
@@ -118,16 +118,16 @@ $string"#;
 $string = 'hello, world'
 $string = $string.trimend(', world')
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::String("he".to_string()));
+        let program_res = p.parse_input(input).unwrap();
+        assert_eq!(program_res.result(), PsValue::String("he".to_string()));
 
         let input = r#"
 $string = 'hello, world'
 $string = $string.trimend('hed')
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::String("hello, worl".to_string())
         );
 
@@ -135,13 +135,13 @@ $string"#;
 $string = 'hello, world '
 $string = $string.trimend()
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::String("\"hello, world \".trimend()".to_string())
         );
         assert_eq!(
-            script_res.errors()[0].to_string(),
+            program_res.errors()[0].to_string(),
             "MethodError: Incorrect arguments \"[]\" for method \"trim_end\"".to_string()
         );
     }
@@ -153,9 +153,9 @@ $string"#;
 $string = 'hello, world'
 $string = $string.trimstart(', world')
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::String("hello, world".to_string())
         );
 
@@ -163,9 +163,9 @@ $string"#;
 $string = 'hello, world'
 $string = $string.trimstart('hed')
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::String("llo, world".to_string())
         );
 
@@ -173,13 +173,13 @@ $string"#;
 $string = 'hello, world '
 $string = $string.trimstart()
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::String("\"hello, world \".trimstart()".to_string())
         );
         assert_eq!(
-            script_res.errors()[0].to_string(),
+            program_res.errors()[0].to_string(),
             "MethodError: Incorrect arguments \"[]\" for method \"trim_start\"".to_string()
         );
     }

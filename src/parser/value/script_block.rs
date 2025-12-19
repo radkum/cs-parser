@@ -103,9 +103,6 @@ impl ScriptBlock {
         if self.body.is_empty() {
             return Ok(CommandOutput::new(Val::Null, vec![]));
         }
-        if let Some(item) = ps_item {
-            ps.variables.set_ps_item(item.clone());
-        }
 
         for (i, param) in self.params.0.iter().enumerate() {
             let val = args
@@ -119,16 +116,10 @@ impl ScriptBlock {
 
         let (
             script_last_output,
-            Results {
-                output: _output,
-                deobfuscated,
-            },
-        ) = ps.parse_subscript(self.body.as_str())?;
+            _,
+        ) = ps.eval_statement_block_string(self.body.as_str());
         //output.into_iter().for_each(|f| ps.add_output_statement(f));
-        deobfuscated
-            .iter()
-            .for_each(|f| self.deobfuscated.push(f.clone()));
-        Ok(CommandOutput::new(script_last_output, deobfuscated))
+        Ok(CommandOutput::new(script_last_output, Vec::new()))
     }
 
     pub fn run(
@@ -143,19 +134,23 @@ impl ScriptBlock {
 
     pub(crate) fn get_static_method(&self) -> Option<StaticFnCallType> {
         let mut fn_body = self.clone();
-        let fun = move |params| {
+        let fun = move |params, session| {
             fn_body
-                .run_static_method(params)
+                .run_static_method(params, session)
                 .map_err(|e| super::MethodError::RuntimeError(e.to_string()))
         };
         Some(Box::new(fun))
     }
 
-    pub fn run_static_method(&mut self, args: Vec<Val>) -> ParserResult<Val> {
-        if self.body.is_empty() {
-            return Ok(Val::Null);
-        }
-        let ps = &mut crate::CSharpSession::new();
+    pub fn run_static_method(&mut self, args: Vec<Val>, session: &mut CSharpSession) -> ParserResult<Val> {
+        session.push_scope_session();
+        let script_last_output = self.run_static_method_impl(args, session);
+        session.pop_scope_session();
+        Ok(script_last_output?)
+    }
+
+    fn run_static_method_impl(&mut self, args: Vec<Val>, ps: &mut CSharpSession) -> ParserResult<Val> {
+        println!("Running static script block with body: {}", self.body);
         for (i, param) in self.params.0.iter().enumerate() {
             let val = args
                 .get(i)
@@ -165,28 +160,33 @@ impl ScriptBlock {
                 .set_local(param.name(), val)
                 .map_err(ParserError::from)?;
         }
-
-        let (script_last_output, _) = ps.parse_subscript(self.body.as_str())?;
-
+        let (script_last_output, _) = ps.eval_statement_block_string(self.body.as_str());
+        
         Ok(script_last_output)
     }
 
     pub(crate) fn get_method(&self) -> Option<MethodCallType> {
         let mut fn_body = self.clone();
-        let fun = move |object: &mut Val, args| {
+        let fun = move |object: &mut Val, args, session| {
             fn_body
-                .run_method(object, args)
+                .run_method(object, args, session)
                 .map_err(|e| super::MethodError::RuntimeError(e.to_string()))
         };
         Some(Box::new(fun))
     }
 
-    pub fn run_method(&mut self, this: &mut Val, args: Vec<Val>) -> ParserResult<Val> {
+    pub fn run_method(&mut self, this: &mut Val, args: Vec<Val>, session: &mut CSharpSession) -> ParserResult<Val> {
         if self.body.is_empty() {
             return Ok(Val::Null);
         }
-        let ps = &mut crate::CSharpSession::new();
-        ps.variables
+        session.push_scope_session();
+        let script_last_output = self.run_method_impl(this, args, session);
+        session.pop_scope_session();
+        Ok(script_last_output?)
+    }
+
+    fn run_method_impl(&mut self, this: &mut Val, args: Vec<Val>, session: &mut CSharpSession) -> ParserResult<Val> {
+        session.variables
             .set_local("this", this.clone())
             .map_err(ParserError::from)?;
         for (i, param) in self.params.0.iter().enumerate() {
@@ -194,13 +194,13 @@ impl ScriptBlock {
                 .get(i)
                 .cloned()
                 .unwrap_or(param.default_value().unwrap_or(Val::Null));
-            ps.variables
+            session.variables
                 .set_local(param.name(), val)
                 .map_err(ParserError::from)?;
         }
 
-        let (script_last_output, _) = ps.parse_subscript(self.body.as_str())?;
-        if let Some(val) = ps.variables.get(&VarName::new(None, "this".to_string())) {
+        let (script_last_output, _) = session.eval_statement_block_string(self.body.as_str());
+        if let Some(val) = session.variables.get(&VarName::new(None, "this".to_string())) {
             *this = val.clone();
         }
         Ok(script_last_output)
@@ -223,14 +223,14 @@ mod tests {
     fn test_script_block() {
         let mut p = CSharpSession::new();
         let input = r#"$elo = 3;$sb = { param($x, $y = 4); $x+$y+$elo};&$sb 1 2"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result().to_string(), "6".to_string());
+        let program_res = p.parse_input(input).unwrap();
+        assert_eq!(program_res.result().to_string(), "6".to_string());
         assert_eq!(
-            script_res.deobfuscated(),
+            program_res.deobfuscated(),
             vec!["$elo = 3", "$sb = {param($x, $y = 4); $x+$y+$elo}", "6",].join(NEWLINE)
         );
-        assert_eq!(script_res.output(), "6".to_string());
-        assert_eq!(script_res.errors().len(), 0);
+        assert_eq!(program_res.output(), "6".to_string());
+        assert_eq!(program_res.errors().len(), 0);
     }
 
     #[test]
@@ -245,10 +245,10 @@ mod tests {
     fn test_non_existing_script_block() {
         let mut p = CSharpSession::new();
         let input = r#"$elo = 3;$sb = { param($x, $y = 4); $x+$y+$elo};.$sb2 1"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert!(script_res.result().to_string().is_empty(),);
+        let program_res = p.parse_input(input).unwrap();
+        assert!(program_res.result().to_string().is_empty(),);
         assert_eq!(
-            script_res.deobfuscated(),
+            program_res.deobfuscated(),
             vec![
                 "$elo = 3",
                 "$sb = {param($x, $y = 4); $x+$y+$elo}",
@@ -256,10 +256,10 @@ mod tests {
             ]
             .join(NEWLINE)
         );
-        assert!(script_res.output().is_empty(),);
-        assert_eq!(script_res.errors().len(), 1);
+        assert!(program_res.output().is_empty(),);
+        assert_eq!(program_res.errors().len(), 1);
         assert_eq!(
-            script_res.errors()[0].to_string(),
+            program_res.errors()[0].to_string(),
             "VariableError: Variable \"sb2\" is not defined"
         );
     }

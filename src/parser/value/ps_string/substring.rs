@@ -79,48 +79,48 @@ mod tests {
         let input = r#"
 $string = 'hello, world'
 $string = $string.substring(1, 4);$string"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::String("ello".to_string()));
+        let program_res = p.parse_input(input).unwrap();
+        assert_eq!(program_res.result(), PsValue::String("ello".to_string()));
 
         let input = r#"
 $string = 'hello, world'
 $string = $string.substring(7);$string"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::String("world".to_string()));
+        let program_res = p.parse_input(input).unwrap();
+        assert_eq!(program_res.result(), PsValue::String("world".to_string()));
 
         let input = r#"
 $string = 'hello, world'
 $string = $string.substring(7,5);$string"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::String("world".to_string()));
+        let program_res = p.parse_input(input).unwrap();
+        assert_eq!(program_res.result(), PsValue::String("world".to_string()));
 
         let input = r#"
 $string = 'hello, world'
 $string = $string.substring(7,6);$string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.errors()[0].to_string(),
+            program_res.errors()[0].to_string(),
             "MethodError: Exception calling \"Substring\" with \"2\" argument(s): \"Index and \
              length must refer to a location within the string. Parameter name: length\""
                 .to_string()
         );
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::String(r#""hello, world".substring(7, 6)"#.to_string())
         );
 
         let input = r#"
 $string = 'hello, world'
 $string = $string.substring(12);$string"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::String("".to_string()));
+        let program_res = p.parse_input(input).unwrap();
+        assert_eq!(program_res.result(), PsValue::String("".to_string()));
 
         let input = r#"
 $string = 'hello, world'
 $string = $string.substring(13);$string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.errors()[0].to_string(),
+            program_res.errors()[0].to_string(),
             "MethodError: Exception calling \"Substring\" with \"1\" argument(s): \"startIndex \
              cannot be larger than length of string. Parameter name: startIndex\""
                 .to_string()
@@ -129,8 +129,8 @@ $string = $string.substring(13);$string"#;
         let input = r#"
 $string = 'hello, world'
 $string = $string.substring(5,0);$string"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::String("".to_string()));
+        let program_res = p.parse_input(input).unwrap();
+        assert_eq!(program_res.result(), PsValue::String("".to_string()));
     }
 
     #[test]
@@ -139,25 +139,25 @@ $string = $string.substring(5,0);$string"#;
         let input = r#"
 $string = 'hello, world'
 $string = $string.remove(1, 4);$string"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::String("h, world".to_string()));
+        let program_res = p.parse_input(input).unwrap();
+        assert_eq!(program_res.result(), PsValue::String("h, world".to_string()));
 
         let input = r#"
 $string = 'hello, world'
 $string = $string.remove(7);$string"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::String("hello, ".to_string()));
+        let program_res = p.parse_input(input).unwrap();
+        assert_eq!(program_res.result(), PsValue::String("hello, ".to_string()));
 
         let input = r#"
 $string = 'hello, world'
 $string = $string.remove(7,15);$string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::String("\"hello, world\".remove(7, 15)".to_string())
         );
         assert_eq!(
-            script_res.errors()[0].to_string(),
+            program_res.errors()[0].to_string(),
             "MethodError: Exception calling \"Remove\" with \"2\" argument(s): \"Index and length \
              must refer to a location within the string. Parameter name: length\""
                 .to_string()

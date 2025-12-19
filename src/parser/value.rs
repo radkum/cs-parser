@@ -3,8 +3,7 @@ mod params;
 mod ps_string;
 mod runtime_object;
 mod script_block;
-mod system_convert;
-mod system_encoding;
+mod string_builder;
 mod val_error;
 use std::{
     collections::{BTreeMap, HashMap},
@@ -22,12 +21,11 @@ pub(crate) use ps_string::PsString;
 use ps_string::str_cmp;
 pub(crate) use runtime_object::RuntimeError;
 pub(super) use runtime_object::RuntimeObjectTrait;
+pub(super) use val_type::RuntimeTypeTrait;
 use runtime_object::{MethodCallType, StaticFnCallType};
 pub(crate) use script_block::ScriptBlock;
 use smart_default::SmartDefault;
-use system_convert::Convert;
 pub(crate) use val_error::ValError;
-use val_type::RuntimeTypeTrait;
 pub(super) use val_type::{RUNTIME_TYPE_MAP, ValType};
 pub type ValResult<T> = core::result::Result<T, ValError>;
 use runtime_object::RuntimeResult;
@@ -818,7 +816,7 @@ impl Val {
                 }
             }
             Val::HashTable(v) => v
-                .get_mut(&index.cast_to_string().to_ascii_lowercase())
+                .get_mut(&index.cast_to_string())
                 .ok_or(RuntimeError::MemberNotFound(index.cast_to_string()).into()),
             _ => {
                 if let Ok(i) = index.cast_to_int() {
@@ -856,7 +854,7 @@ impl Val {
                 Ok(Val::Char(c as u32))
             }
             Val::HashTable(v) => v
-                .get(&index.cast_to_string().to_ascii_lowercase())
+                .get(&index.cast_to_string())
                 .cloned()
                 .ok_or(RuntimeError::MemberNotFound(index.cast_to_string()).into()),
             _ => {

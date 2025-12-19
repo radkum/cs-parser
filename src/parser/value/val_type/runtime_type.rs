@@ -3,11 +3,17 @@ use super::{
     RuntimeResult, Val, ValType,
     type_info::TypeInfo,
 };
-use crate::parser::MethodName;
-
+use crate::parser::{MethodName, ParserResult};
+use crate::CSharpSession;
 pub(crate) trait RuntimeTypeTrait: std::fmt::Debug + Sync + Send {
     fn describe(&self) -> String {
         format!("{}", self.type_info())
+    }
+
+    fn init(&self, _: Vec<Val>, session: &mut CSharpSession) -> ParserResult<Val> {
+        Err(crate::parser::error::ParserError::NotImplemented(
+            "init not implemented for this type".to_string(),
+        ))
     }
 
     fn static_method(&self, method_name: MethodName) -> RuntimeResult<StaticFnCallType> {
@@ -31,7 +37,7 @@ pub(crate) trait RuntimeTypeTrait: std::fmt::Debug + Sync + Send {
     fn name(&self) -> String;
 
     fn full_name(&self) -> String {
-        format!("System.{}", self.name())
+        self.name()
     }
 
     fn type_definition(&self) -> ValType {

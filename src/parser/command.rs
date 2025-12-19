@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::LazyLock, vec};
 use thiserror_no_std::Error;
 
 use super::{SessionScope, StreamMessage, Val, value::ScriptBlock};
-use crate::{CSharpSession, ScriptResult, parser::ParserError};
+use crate::{CSharpSession, ProgramResult, parser::ParserError};
 
 #[derive(Error, Debug, PartialEq, Clone)]
 pub enum CommandError {
@@ -42,11 +42,11 @@ impl CommandOutput {
     }
 }
 
-impl From<ScriptResult> for CommandOutput {
-    fn from(script_result: ScriptResult) -> Self {
+impl From<ProgramResult> for CommandOutput {
+    fn from(program_result: ProgramResult) -> Self {
         CommandOutput {
-            val: script_result.result().into(),
-            deobfuscated: script_result.deobfuscated().into(),
+            val: program_result.result().into(),
+            deobfuscated: program_result.deobfuscated().into(),
         }
     }
 }
@@ -166,9 +166,9 @@ impl Command {
         match &mut self.command_inner {
             CommandInner::ScriptBlock(sb) => sb.run(self.args.clone(), ps, None),
             CommandInner::Cmdlet(name) => {
-                if let Some(fun) = ps.variables.get_function(&name.to_ascii_lowercase()) {
+                if let Some(fun) = ps.variables.get_function(name) {
                     fun(self.args.clone(), ps)
-                } else if let Some(cmdlet) = Self::get(&name.to_ascii_lowercase()) {
+                } else if let Some(cmdlet) = Self::get(name) {
                     cmdlet(&mut self.args, ps)
                 } else {
                     Err(ParserError::from(CommandError::NotFound(name.clone())))?
@@ -344,169 +344,6 @@ fn get_location(
         deobfuscated: Some(format!("Get-Location \"{}\"", dir.display())),
     })
 }
-// Helper function to extract message from command arguments
-fn extract_message(args: &[CommandElem]) -> String {
-    let mut output = Vec::new();
-    let mut skip = 0;
-    for i in args.iter() {
-        if skip > 0 {
-            skip -= 1;
-            continue;
-        }
-        match i {
-            CommandElem::Parameter(s) => {
-                if s.to_ascii_lowercase().as_str() == "-foregroundcolor" {
-                    skip = 1
-                } else {
-                    output.push(s.clone());
-                }
-            }
-            CommandElem::Argument(val) => {
-                output.push(val.display());
-            }
-            CommandElem::ArgList(_) => {}
-        }
-    }
-    output.join(" ")
-}
-// Write-Host cmdlet implementation (goes directly to console, not capturable)
-fn write_host(args: &mut Vec<CommandElem>, ps: &mut CSharpSession) -> ParserResult<CommandOutput> {
-    let message = extract_message(args);
-    let deobfuscated = format!(
-        "Write-Host {}",
-        args.iter()
-            .map(|p| p.display())
-            .collect::<Vec<_>>()
-            .join(" ")
-    );
-
-    ps.add_output_statement(StreamMessage::success(message));
-    Ok(CommandOutput {
-        val: Val::Null,
-        deobfuscated: Some(deobfuscated),
-    })
-}
-// Write-Output cmdlet implementation
-fn write_output(args: &mut Vec<CommandElem>, _: &mut CSharpSession) -> ParserResult<CommandOutput> {
-    let message = extract_message(args);
-    let deobfuscated = format!(
-        "Write-Output {}",
-        args.iter()
-            .map(|p| p.display())
-            .collect::<Vec<_>>()
-            .join(" ")
-    );
-
-    Ok(CommandOutput {
-        val: Val::String(message.clone().into()),
-        deobfuscated: Some(deobfuscated),
-    })
-}
-
-// Write-Warning cmdlet implementation (mimics PowerShell's Write-Warning)
-fn write_warning(
-    args: &mut Vec<CommandElem>,
-    _: &mut CSharpSession,
-) -> ParserResult<CommandOutput> {
-    let message = extract_message(args);
-    let deobfuscated = format!(
-        "Write-Warning {}",
-        args.iter()
-            .map(|p| p.display())
-            .collect::<Vec<_>>()
-            .join(" ")
-    );
-
-    Ok(CommandOutput {
-        val: Val::String(message.clone().into()),
-        deobfuscated: Some(deobfuscated),
-    })
-}
-
-// Write-Error cmdlet implementation
-fn write_error(args: &mut Vec<CommandElem>, _: &mut CSharpSession) -> ParserResult<CommandOutput> {
-    let message = extract_message(args);
-    let deobfuscated = format!(
-        "Write-Error {}",
-        args.iter()
-            .map(|p| p.display())
-            .collect::<Vec<_>>()
-            .join(" ")
-    );
-
-    Ok(CommandOutput {
-        val: Val::String(message.clone().into()),
-        deobfuscated: Some(deobfuscated),
-    })
-}
-
-// Write-Verbose cmdlet implementation
-fn write_verbose(
-    args: &mut Vec<CommandElem>,
-    _: &mut CSharpSession,
-) -> ParserResult<CommandOutput> {
-    let message = extract_message(args);
-    let deobfuscated = format!(
-        "Write-Verbose {}",
-        args.iter()
-            .map(|p| p.display())
-            .collect::<Vec<_>>()
-            .join(" ")
-    );
-    Ok(CommandOutput {
-        val: Val::String(message.clone().into()),
-        deobfuscated: Some(deobfuscated),
-    })
-}
-
-// Powershell cmdlet implementation. It don't actually invoke a new PowerShell
-// process, only deobfuscates the command.
-fn powershell(args: &mut Vec<CommandElem>, ps: &mut CSharpSession) -> ParserResult<CommandOutput> {
-    fn deobfuscate_command(args: &mut Vec<CommandElem>, ps: &mut CSharpSession) {
-        use base64::prelude::*;
-        let mut index_to_decode = vec![];
-        let mut args = args.iter_mut().map(Some).collect::<Vec<_>>();
-        for (i, arg) in args.iter_mut().enumerate() {
-            if let Some(CommandElem::Parameter(s)) = arg {
-                let p = s.to_ascii_lowercase();
-                if let Some(_stripped) = "-encodedcommand".strip_prefix(&p) {
-                    index_to_decode.push(i + 1);
-                    *s = "-command".to_string();
-                }
-            }
-        }
-
-        for i in index_to_decode {
-            if let Some(CommandElem::Argument(Val::ScriptText(s))) = &mut args[i] {
-                if let Ok(decoded_bytes) = BASE64_STANDARD.decode(s.clone()) {
-                    if let Ok(decoded_str) = String::from_utf16(
-                        &decoded_bytes
-                            .chunks(2)
-                            .map(|chunk| u16::from_le_bytes([chunk[0], chunk[1]]))
-                            .collect::<Vec<u16>>(),
-                    ) {
-                        if let Ok(script_result) = ps.parse_input(&decoded_str) {
-                            if script_result.deobfuscated().is_empty() {
-                                *s = decoded_str.into();
-                            } else {
-                                *s = script_result.deobfuscated();
-                            }
-                        } else {
-                            log::warn!("Failed to deobfuscate: {}", &decoded_str);
-                            *s = decoded_str.into();
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    deobfuscate_command(args, ps);
-
-    Err(CommandError::ExecutionError(
-        "Powershell invocation is not supported".into(),
-    ))?
-}
 
 #[cfg(test)]
 mod tests {
@@ -577,16 +414,16 @@ mod tests {
     #[test]
     fn test_write_output() {
         // assign not existing value, without forcing evaluation
-        let mut p = CSharpSession::new().with_variables(Variables::env());
+        let mut p = CSharpSession::new();
         let input = r#" $global:var = $env:programfiles; Write-output $var"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
 
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::String(std::env::var("PROGRAMFILES").unwrap())
         );
         assert_eq!(
-            script_res.deobfuscated(),
+            program_res.deobfuscated(),
             vec![
                 format!(
                     "$global:var = \"{}\"",
@@ -596,8 +433,8 @@ mod tests {
             ]
             .join(NEWLINE)
         );
-        assert_eq!(script_res.output(), std::env::var("PROGRAMFILES").unwrap());
-        assert_eq!(script_res.errors().len(), 0);
+        assert_eq!(program_res.output(), std::env::var("PROGRAMFILES").unwrap());
+        assert_eq!(program_res.errors().len(), 0);
     }
 
     #[test]

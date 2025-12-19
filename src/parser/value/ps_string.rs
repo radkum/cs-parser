@@ -11,6 +11,9 @@ use crate::parser::{
     MethodName,
     value::{RuntimeError, runtime_object::RuntimeResult},
 };
+
+use crate::CSharpSession;
+
 #[derive(Clone, Debug, SmartDefault, PartialEq)]
 pub(crate) struct PsString(pub String);
 
@@ -53,7 +56,7 @@ impl RuntimeObjectTrait for PsString {
             _ => Err(RuntimeError::MethodNotFound(name.to_string()))?,
         };
 
-        Ok(Box::new(move |v: &mut Val, args: Vec<Val>| {
+        Ok(Box::new(move |v: &mut Val, args: Vec<Val>, _: &mut CSharpSession| {
             if let Val::String(str) = v {
                 fn_ptr(str, args)
             } else {
@@ -208,8 +211,8 @@ $string = $string.replace('o,','o')
 $string = $string.replace(' ','.')
 $string = $string.replace('wo','d')
 $string = $string.replace('rld','ll');$string"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::String("elo.dll".to_string()));
+        let program_res = p.parse_input(input).unwrap();
+        assert_eq!(program_res.result(), PsValue::String("elo.dll".to_string()));
     }
 
     #[test]
@@ -220,9 +223,9 @@ $string = 'hello'
 $string = $string.insert(1,'r')
 $string = $string.insert(4,"dll")
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::String("hreldlllo".to_string())
         );
     }
@@ -234,9 +237,9 @@ $string"#;
 $string = 'hello world'
 $string = $string.split('l')
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::Array(vec![
                 PsValue::String("he".to_string()),
                 PsValue::String("".to_string()),
@@ -249,9 +252,9 @@ $string"#;
 $string = 'hello world'
 $string = $string.split('l', 2)
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::Array(vec![
                 PsValue::String("he".to_string()),
                 PsValue::String("lo world".to_string()),
@@ -262,9 +265,9 @@ $string"#;
 $string = 'hello world'
 $string = $string.split('z', 2)
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
+        let program_res = p.parse_input(input).unwrap();
         assert_eq!(
-            script_res.result(),
+            program_res.result(),
             PsValue::Array(vec![PsValue::String("hello world".to_string()),])
         );
 
@@ -272,7 +275,7 @@ $string"#;
 $string = 'hello world'
 $string = $string.split('z', 0)
 $string"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::Array(vec![]));
+        let program_res = p.parse_input(input).unwrap();
+        assert_eq!(program_res.result(), PsValue::Array(vec![]));
     }
 }

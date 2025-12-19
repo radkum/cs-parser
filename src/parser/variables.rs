@@ -3,7 +3,7 @@ mod scopes;
 mod variable;
 
 use std::collections::HashMap;
-
+use super::value::RUNTIME_TYPE_MAP;
 pub(super) use function::FunctionMap;
 use phf::phf_map;
 pub(super) use scopes::SessionScope;
@@ -54,43 +54,6 @@ impl Variables {
         "null" => Val::Null,
     };
 
-    pub(crate) fn set_ps_item(&mut self, ps_item: Val) {
-        let _ = self.set(
-            &VarName::new_with_scope(Scope::Special, "$PSItem".into()),
-            ps_item.clone(),
-        );
-        let _ = self.set(
-            &VarName::new_with_scope(Scope::Special, "$_".into()),
-            ps_item,
-        );
-    }
-
-    pub(crate) fn reset_ps_item(&mut self) {
-        let _ = self.set(
-            &VarName::new_with_scope(Scope::Special, "$PSItem".into()),
-            Val::Null,
-        );
-        let _ = self.set(
-            &VarName::new_with_scope(Scope::Special, "$_".into()),
-            Val::Null,
-        );
-    }
-
-    pub fn set_status(&mut self, b: bool) {
-        let _ = self.set(
-            &VarName::new_with_scope(Scope::Special, "$?".into()),
-            Val::Bool(b),
-        );
-    }
-
-    pub fn status(&mut self) -> bool {
-        let Some(Val::Bool(b)) = self.get(&VarName::new_with_scope(Scope::Special, "$?".into()))
-        else {
-            return false;
-        };
-        b
-    }
-
     pub fn load_from_file(
         &mut self,
         path: &std::path::Path,
@@ -127,7 +90,6 @@ impl Variables {
                 let var_name = match section_name.as_str() {
                     "global" => VarName::new_with_scope(Scope::Global, key.to_lowercase()),
                     "script" => VarName::new_with_scope(Scope::Script, key.to_lowercase()),
-                    "env" => VarName::new_with_scope(Scope::Env, key.to_lowercase()),
                     _ => {
                         continue;
                     }
@@ -253,41 +215,6 @@ impl Variables {
         self
     }
 
-    /// Loads all environment variables into a Variables container.
-    ///
-    /// This method reads all environment variables from the system and stores
-    /// them in the `env` scope, making them accessible as
-    /// `$env:VARIABLE_NAME` in PowerShell scripts.
-    ///
-    /// # Returns
-    ///
-    /// A new `Variables` instance containing all environment variables.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use ps_parser::{Variables, CSharpSession};
-    ///
-    /// let env_vars = Variables::env();
-    /// let mut session = CSharpSession::new().with_variables(env_vars);
-    ///
-    /// // Access environment variables
-    /// let path = session.safe_eval("$env:PATH").unwrap();
-    /// let username = session.safe_eval("$env:USERNAME").unwrap();
-    /// ```
-    pub fn env() -> Variables {
-        let mut vars = Variables::new();
-
-        // Load all environment variables
-        for (key, value) in std::env::vars() {
-            // Store environment variables with Env scope so they can be accessed via
-            // $env:variable_name
-            vars.env
-                .insert(key.to_lowercase(), Val::String(value.into()));
-        }
-        vars
-    }
-
     /// Loads variables from an INI configuration file.
     ///
     /// This method parses an INI file and loads its key-value pairs as
@@ -360,9 +287,6 @@ impl Variables {
                     }
                 }
             },
-            Scope::Special => {
-                &self.global_scope //todo!(),
-            }
         }
     }
 
@@ -384,9 +308,6 @@ impl Variables {
             Scope::Script => &mut self.script_scope,
             Scope::Env => &mut self.env,
             Scope::Local => self.local_scope(),
-            Scope::Special => {
-                &mut self.global_scope //todo!(),
-            }
         }
     }
 
@@ -408,14 +329,14 @@ impl Variables {
             *variable = val;
         } else {
             let map = self.map_from_scope(&var_name.scope.clone().unwrap_or(Scope::Local));
-            map.insert(var_name.name.to_ascii_lowercase(), val);
+            map.insert(var_name.name.clone(), val);
         }
 
         Ok(())
     }
 
     pub(crate) fn set_local(&mut self, name: &str, val: Val) -> VariableResult<()> {
-        let var_name = VarName::new_with_scope(Scope::Local, name.to_ascii_lowercase());
+        let var_name = VarName::new_with_scope(Scope::Local, name.to_string());
         self.set(&var_name, val)
     }
 
@@ -423,7 +344,7 @@ impl Variables {
         &mut self,
         var_name: &VarName,
     ) -> VariableResult<Option<&mut Val>> {
-        let name = var_name.name.to_ascii_lowercase();
+        let name = var_name.name.to_string();
         let name_str = name.as_str();
 
         if let Some(scope) = &var_name.scope {
@@ -466,15 +387,22 @@ impl Variables {
     pub(crate) fn get(&self, var_name: &VarName) -> Option<Val> {
         let var = self.find_variable_in_scopes(var_name);
 
-        if self.force_var_eval && var.is_none() {
-            Some(Val::Null)
+        if var.is_none() {
+            let Ok(a) = RUNTIME_TYPE_MAP
+                .try_lock() else {
+                    return None;
+                };
+            let Some(rt) = a.get(var_name.name.as_str()) else {
+                return None;
+            };
+            return Some(Val::RuntimeType(rt.clone_rt()));
         } else {
             var.cloned()
         }
     }
 
     fn find_variable_in_scopes(&self, var_name: &VarName) -> Option<&Val> {
-        let name = var_name.name.to_ascii_lowercase();
+        let name = var_name.name.to_string();
         let name_str = name.as_str();
 
         if let Some(scope) = &var_name.scope {
@@ -535,159 +463,25 @@ mod tests {
     #[test]
     fn test_builtin_variables() {
         let mut p = CSharpSession::new();
-        assert_eq!(p.safe_eval(r#" $true "#).unwrap().as_str(), "True");
-        assert_eq!(p.safe_eval(r#" $false "#).unwrap().as_str(), "False");
-        assert_eq!(p.safe_eval(r#" $null "#).unwrap().as_str(), "");
+        assert_eq!(p.safe_eval_statements(r#" true;"#).unwrap().to_string().as_str(), "True");
+        assert_eq!(p.safe_eval_statements(r#" false;"#).unwrap().to_string().as_str(), "False");
+        assert_eq!(p.safe_eval_statements(r#" null;"#).unwrap().to_string().as_str(), "");
     }
 
-    #[test]
-    fn test_env_variables() {
-        let v = Variables::env();
-        let mut p = CSharpSession::new().with_variables(v);
-        assert_eq!(
-            p.safe_eval(r#" $env:path "#).unwrap().as_str(),
-            std::env::var("PATH").unwrap()
-        );
-        assert_eq!(
-            p.safe_eval(r#" $env:username "#).unwrap().as_str(),
-            std::env::var("USERNAME").unwrap()
-        );
-        assert_eq!(
-            p.safe_eval(r#" $env:tEMp "#).unwrap().as_str(),
-            std::env::var("TEMP").unwrap()
-        );
-        assert_eq!(
-            p.safe_eval(r#" $env:tMp "#).unwrap().as_str(),
-            std::env::var("TMP").unwrap()
-        );
-        assert_eq!(
-            p.safe_eval(r#" $env:cOmputername "#).unwrap().as_str(),
-            std::env::var("COMPUTERNAME").unwrap()
-        );
-        assert_eq!(
-            p.safe_eval(r#" $env:programfiles "#).unwrap().as_str(),
-            std::env::var("PROGRAMFILES").unwrap()
-        );
-        assert_eq!(
-            p.safe_eval(r#" $env:temp "#).unwrap().as_str(),
-            std::env::var("TEMP").unwrap()
-        );
-        assert_eq!(
-            p.safe_eval(r#" ${Env:ProgramFiles(x86)} "#)
-                .unwrap()
-                .as_str(),
-            std::env::var("ProgramFiles(x86)").unwrap()
-        );
-        let env_variables = p.env_variables();
-        assert_eq!(
-            env_variables.get("path").unwrap().to_string(),
-            std::env::var("PATH").unwrap()
-        );
-        assert_eq!(
-            env_variables.get("tmp").unwrap().to_string(),
-            std::env::var("TMP").unwrap()
-        );
-        assert_eq!(
-            env_variables.get("temp").unwrap().to_string(),
-            std::env::var("TMP").unwrap()
-        );
-        assert_eq!(
-            env_variables.get("appdata").unwrap().to_string(),
-            std::env::var("APPDATA").unwrap()
-        );
-        assert_eq!(
-            env_variables.get("username").unwrap().to_string(),
-            std::env::var("USERNAME").unwrap()
-        );
-        assert_eq!(
-            env_variables.get("programfiles").unwrap().to_string(),
-            std::env::var("PROGRAMFILES").unwrap()
-        );
-        assert_eq!(
-            env_variables.get("programfiles(x86)").unwrap().to_string(),
-            std::env::var("PROGRAMFILES(x86)").unwrap()
-        );
-    }
 
     #[test]
-    fn test_global_variables() {
-        let v = Variables::env();
-        let mut p = CSharpSession::new().with_variables(v);
+    fn test_variables() {
+        let mut p = CSharpSession::new();
 
-        p.parse_input(r#" $global:var_int = 5 "#).unwrap();
-        p.parse_input(r#" $global:var_string = "global";$script:var_string = "script";$local:var_string = "local" "#).unwrap();
-
-        assert_eq!(
-            p.parse_input(r#" $var_int "#).unwrap().result(),
-            PsValue::Int(5)
-        );
-        assert_eq!(
-            p.parse_input(r#" $var_string "#).unwrap().result(),
-            PsValue::String("global".into())
-        );
-
-        let global_variables = p.session_variables();
-        assert_eq!(global_variables.get("var_int").unwrap(), &PsValue::Int(5));
-        assert_eq!(
-            global_variables.get("var_string").unwrap(),
-            &PsValue::String("global".into())
-        );
-    }
-
-    #[test]
-    fn test_script_variables() {
-        let v = Variables::env();
-        let mut p = CSharpSession::new().with_variables(v);
-
-        let script_res = p
-            .parse_input(r#" $script:var_int = 5;$var_string = "assdfa" "#)
+        let program_res = p
+            .parse_statements_string_as_program(r#" int var_int = 5; string var_string = "assdfa"; "#)
             .unwrap();
-        let script_variables = script_res.script_variables();
+        let script_variables = program_res.script_variables();
         assert_eq!(script_variables.get("var_int"), Some(&PsValue::Int(5)));
         assert_eq!(
             script_variables.get("var_string"),
             Some(&PsValue::String("assdfa".into()))
         );
-    }
-
-    #[test]
-    fn test_env_special_cases() {
-        let v = Variables::env();
-        let mut p = CSharpSession::new().with_variables(v);
-        p.safe_eval(r#" $global:program = $env:programfiles + "\program" "#)
-            .unwrap();
-        assert_eq!(
-            p.safe_eval(r#" $global:program "#).unwrap().as_str(),
-            format!("{}\\program", std::env::var("PROGRAMFILES").unwrap())
-        );
-        assert_eq!(
-            p.safe_eval(r#" $program "#).unwrap().as_str(),
-            format!("{}\\program", std::env::var("PROGRAMFILES").unwrap())
-        );
-
-        assert_eq!(
-            p.safe_eval(r#" ${Env:ProgramFiles(x86):adsf} = 5;${Env:ProgramFiles(x86):adsf} "#)
-                .unwrap()
-                .as_str(),
-            5.to_string()
-        );
-        assert_eq!(
-            p.safe_eval(r#" ${Env:ProgramFiles(x86)} "#)
-                .unwrap()
-                .as_str(),
-            std::env::var("ProgramFiles(x86)").unwrap()
-        );
-    }
-
-    #[test]
-    fn special_last_error() {
-        let input = r#"3+"01234 ?";$a=5;$a;$?"#;
-
-        let mut p = CSharpSession::new();
-        assert_eq!(p.safe_eval(input).unwrap().as_str(), "True");
-
-        let input = r#"3+"01234 ?";$?"#;
-        assert_eq!(p.safe_eval(input).unwrap().as_str(), "False");
     }
 
     #[test]
@@ -707,21 +501,23 @@ local_var = "local_value"
         let mut p = CSharpSession::new().with_variables(variables);
 
         assert_eq!(
-            p.parse_input(r#" $global:name "#).unwrap().result(),
+            p.safe_eval_statements(r#" name; "#).unwrap(),
             PsValue::String("radek".into())
         );
         assert_eq!(
-            p.parse_input(r#" $global:age "#).unwrap().result(),
+            p.safe_eval_statements(r#" age; "#).unwrap(),
             PsValue::Int(30)
         );
-        assert_eq!(p.safe_eval(r#" $false "#).unwrap().as_str(), "False");
-        assert_eq!(p.safe_eval(r#" $null "#).unwrap().as_str(), "");
+        assert_eq!(p.safe_eval_statements(r#" false; "#).unwrap()
+            .to_string()
+            .as_str(), "False");
+        assert_eq!(p.safe_eval_statements(r#" null; "#).unwrap()
+            .to_string()
+            .as_str(), "");
         assert_eq!(
-            p.safe_eval(r#" $script:local_var "#).unwrap().as_str(),
-            "\"local_value\""
-        );
-        assert_eq!(
-            p.safe_eval(r#" $local:local_var "#).unwrap().as_str(),
+            p.safe_eval_statements(r#" local_var; "#).unwrap()
+            .to_string()
+            .as_str(),
             "\"local_value\""
         );
     }
@@ -742,25 +538,23 @@ local_var = "local_value"
         let variables = Variables::from_ini_string(input).unwrap().values_persist();
         let mut p = CSharpSession::new().with_variables(variables);
         assert_eq!(
-            p.parse_input(r#" $global:name "#).unwrap().result(),
+            p.safe_eval_statements(r#" name; "#).unwrap(),
             PsValue::String("radek".into())
         );
         assert_eq!(
-            p.parse_input(r#" $global:age "#).unwrap().result(),
+            p.safe_eval_statements(r#" age; "#).unwrap(),
             PsValue::Int(30)
         );
-        assert_eq!(p.safe_eval(r#" $false "#).unwrap().as_str(), "False");
-        assert_eq!(p.safe_eval(r#" $null "#).unwrap().as_str(), "");
+        assert_eq!(p.safe_eval_statements(r#" false; "#).unwrap()
+            .to_string()
+            .as_str(), "False");
+        assert_eq!(p.safe_eval_statements(r#" null; "#).unwrap()
+            .to_string()
+            .as_str(), "");
         assert_eq!(
-            p.safe_eval(r#" $script:local_var "#).unwrap().as_str(),
-            "\"local_value\""
-        );
-        assert_eq!(
-            p.safe_eval(r#" $local_var "#).unwrap().as_str(),
-            "\"local_value\""
-        );
-        assert_eq!(
-            p.safe_eval(r#" $local:local_var "#).unwrap().as_str(),
+            p.safe_eval_statements(r#" local_var; "#).unwrap()
+            .to_string()
+            .as_str(),
             "\"local_value\""
         );
     }

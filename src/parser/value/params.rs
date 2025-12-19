@@ -51,11 +51,12 @@ impl std::fmt::Display for Param {
 pub struct FunctionHeader {
     name: String,
     params: Vec<Param>,
+    is_static: bool,
 }
 
 impl FunctionHeader {
-    pub fn new(name: String, params: Vec<Param>) -> Self {
-        Self { name, params }
+    pub fn new(name: String, params: Vec<Param>, is_static: bool) -> Self {
+        Self { name, params, is_static }
     }
 
     pub fn name(&self) -> &str {
@@ -64,6 +65,10 @@ impl FunctionHeader {
 
     pub fn params(&self) -> &Vec<Param> {
         &self.params
+    }
+
+    pub fn is_static(&self) -> bool {
+        self.is_static
     }
 }
 

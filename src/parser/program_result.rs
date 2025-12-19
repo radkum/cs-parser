@@ -105,7 +105,7 @@ impl From<InternalVal> for PsValue {
 }
 
 #[derive(Debug)]
-pub struct ScriptResult {
+pub struct ProgramResult {
     result: PsValue,
     stream: Vec<String>,
     evaluated_statements: Vec<String>,
@@ -114,7 +114,7 @@ pub struct ScriptResult {
     script_values: HashMap<String, PsValue>,
 }
 
-impl ScriptResult {
+impl ProgramResult {
     pub(crate) fn new(
         result: InternalVal,
         stream: Vec<StreamMessage>,

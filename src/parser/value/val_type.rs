@@ -1,17 +1,19 @@
 mod runtime_type;
 pub(crate) mod type_info;
-
+use crate::CSharpSession;
 use std::{
     collections::HashMap,
     sync::{LazyLock, Mutex},
 };
 
-pub(super) use runtime_type::RuntimeTypeTrait;
+pub(crate) use runtime_type::RuntimeTypeTrait;
 use smart_default::SmartDefault;
 pub(super) use type_info::ObjectType;
 use type_info::{ArrayType, ValueType};
 
-use super::{Convert, RuntimeResult, Val, ValError, ValResult, system_encoding::Encoding};
+use crate::parser::ParserResult;
+
+use super::{RuntimeResult, Val, ValError, ValResult, string_builder::StringBuilderType};
 
 #[derive(Debug, SmartDefault, PartialEq, Clone)]
 pub enum ValType {
@@ -57,21 +59,20 @@ impl std::fmt::Display for ValType {
     }
 }
 
-const CONVERT: Convert = Convert {};
-const ENCODING: Encoding = Encoding {};
+const STRING_BUILDER: StringBuilderType = StringBuilderType {};
 pub static RUNTIME_TYPE_MAP: LazyLock<Mutex<HashMap<String, Box<dyn RuntimeTypeTrait>>>> =
     LazyLock::new(|| {
         Mutex::new(HashMap::from([
-            ("system.convert".into(), Box::new(CONVERT) as _),
-            ("system.text.encoding".into(), Box::new(ENCODING) as _),
+            (StringBuilderType::nname(), Box::new(STRING_BUILDER) as _),
         ]))
     });
 impl ValType {
     pub(crate) fn cast(s: &str) -> ValResult<Self> {
-        let mut s = s.to_ascii_lowercase();
-        if "object" == s.as_str() || "object[]" == s.as_str() {
+        let mut s = s.to_string();
+        if "object" == s || "object[]" == s {
             s = "array".into();
         }
+        
         s.retain(|c| !c.is_whitespace());
         if let Some(prefix) = s.strip_suffix("[]") {
             return Ok(Self::Array(Some(Box::new(Self::cast(prefix)?))));
@@ -85,8 +86,6 @@ impl ValType {
             "string" => Self::String,
             "array" => Self::Array(None),
             "object" => Self::Array(None),
-            "scriptblock" => Self::ScriptBlock,
-            "hashtable" => Self::HashTable,
             "switch" => Self::Switch,
             _ => {
                 if let Ok(map) = RUNTIME_TYPE_MAP.try_lock()
@@ -121,6 +120,43 @@ impl ValType {
 }
 
 impl RuntimeTypeTrait for ValType {
+    fn init(&self, args: Vec<Val>, sesssion: &mut CSharpSession) -> ParserResult<Val> {
+        match self {
+            Self::Array(t) => {
+                if let Some(elem_type) = t {
+                    let mut arr = Vec::with_capacity(args.len());
+                    for arg in args {
+                        let v = elem_type.init(vec![arg], sesssion)?;
+                        arr.push(v);
+                    }
+                    Ok(Val::Array(arr))
+                } else {
+                    let mut arr = Vec::with_capacity(args.len());
+                    for arg in args {
+                        arr.push(arg);
+                    }
+                    Ok(Val::Array(arr))
+                }
+            }
+            Self::Char => {
+                if args.len() != 1 {
+                    return Err(ValError::InvalidArgumentCount(1, args.len()).into());
+                }
+                let c = args[0].cast_to_char()?;
+                Ok(Val::Char(c))
+            }
+            Self::RuntimeObject(name) => {
+                let map = RUNTIME_TYPE_MAP
+                    .try_lock()
+                    .map_err(|_| ValError::UnknownType(name.to_string()))?;
+                let rt = map.get(name.as_str())
+                    .ok_or_else(|| ValError::UnknownType(name.to_string()))?;
+                rt.init(args, sesssion)
+            }
+            _ => todo!(),
+        }
+    }
+    
     fn base_type(&self) -> Box<dyn RuntimeTypeTrait> {
         match self {
             ValType::Null => unreachable!(),

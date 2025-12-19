@@ -2,14 +2,14 @@ use std::{collections::HashMap, vec};
 
 use super::{RuntimeResult, Val, ValType};
 use crate::parser::{
-    RuntimeObjectTrait, ScriptBlock,
-    value::{
+    ParserResult, RuntimeObjectTrait, ScriptBlock, value::{
         MethodError, MethodResult, RuntimeError, RuntimeTypeTrait, StaticFnCallType,
         val_type::ObjectType,
-    },
+    }
 };
 pub(crate) type MethodMap = HashMap<String, ScriptBlock>;
 use crate::parser::Param;
+use crate::CSharpSession;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct ClassProperties(HashMap<String, (Option<ValType>, Option<Val>)>);
@@ -51,7 +51,7 @@ fn strip_case_insensitive_prefix<'a>(s: &'a str, prefix: &str) -> Option<&'a str
 impl ClassType {
     pub fn new(
         name: String,
-        properties: ClassProperties,
+        properties: Option<ClassProperties>,
         static_methods: MethodMap,
         mut methods: MethodMap,
     ) -> Self {
@@ -73,6 +73,7 @@ impl ClassType {
         if constructors.is_empty() {
             constructors.insert("new".to_string(), ScriptBlock::default());
         }
+        let properties = properties.unwrap_or_default();
         Self {
             name,
             properties,
@@ -81,9 +82,22 @@ impl ClassType {
             methods,
         }
     }
+
+    pub fn with_properties(mut self, properties: ClassProperties) -> Self {
+        self.properties = properties;
+        self
+    }
 }
 
 impl RuntimeTypeTrait for ClassType {
+    fn init(&self, _: Vec<Val>, session: &mut CSharpSession) -> ParserResult<Val> {
+        let mut call: StaticFnCallType = self.constructors
+                    .get("new")
+                    .map(move |sb| self.constructor(sb.clone()))
+                    .ok_or_else(|| MethodError::MethodNotFound("new".into()))?;
+        call(vec![], session).map_err(|e| e.into())
+    }
+
     fn static_method(&self, name: MethodName) -> RuntimeResult<StaticFnCallType> {
         match name.name() {
             "new" => {
@@ -91,19 +105,23 @@ impl RuntimeTypeTrait for ClassType {
                     .get(name.full_name())
                     .map(|sb| self.constructor(sb.clone()))
                     .ok_or_else(|| MethodError::MethodNotFound(name.full_name().into()).into())
-                //Ok(Box::new(self.default_constructor()))
             }
             _ => {
+                println!("Looking for static method: {}", name.full_name());
+                println!("Looking for static method: {:?}", self.static_methods);
                 let Some(fn_body) = self.static_methods.get(name.full_name()).cloned() else {
                     return Err(MethodError::MethodNotFound(name.full_name().into()).into());
                 };
+                println!("Looking for static method: {}", name.full_name());
                 let Some(fun) = fn_body.get_static_method() else {
                     return Err(MethodError::MethodNotFound(name.full_name().into()).into());
                 };
+                println!("Looking for static method: {}", name.full_name());
                 Ok(fun)
             }
         }
     }
+
     fn base_type(&self) -> Box<dyn RuntimeTypeTrait> {
         Box::new(ObjectType {})
     }
@@ -112,7 +130,7 @@ impl RuntimeTypeTrait for ClassType {
     }
 
     fn full_name(&self) -> String {
-        format!("System.{}", self.name())
+        self.name()
     }
 
     fn clone_rt(&self) -> Box<dyn RuntimeTypeTrait> {
@@ -123,19 +141,20 @@ impl RuntimeTypeTrait for ClassType {
 impl ClassType {
     fn constructor(&self, constructor_body: ScriptBlock) -> StaticFnCallType {
         let class = self.clone();
-        Box::new(move |args: Vec<Val>| new_instance(class.clone(), args, constructor_body.clone()))
+        Box::new(move |args: Vec<Val>, session: &mut CSharpSession| new_instance(class.clone(), args, constructor_body.clone(), session))
     }
 }
 fn new_instance(
     mut class_type: ClassType,
     args: Vec<Val>,
     constructor_body: ScriptBlock,
+    session: &'static mut CSharpSession,
 ) -> MethodResult<Val> {
     // Implementation of the 'new' method for class instantiation
     let properties = std::mem::take(&mut class_type.properties);
     let mut this = Val::RuntimeObject(Box::new(ClassObject::new(class_type, properties)));
     if let Some(mut constructor_fn) = constructor_body.get_method() {
-        constructor_fn(&mut this, args)?;
+        constructor_fn(&mut this, args, session)?;
     }
 
     Ok(this)
@@ -157,7 +176,7 @@ impl ClassObject {
 
 impl RuntimeObjectTrait for ClassObject {
     fn member(&mut self, name: &str) -> RuntimeResult<&mut Val> {
-        match self.properties.0.get_mut(&name.to_ascii_lowercase()) {
+        match self.properties.0.get_mut(name) {
             Some(prop) => {
                 if prop.1.is_none() {
                     prop.1 = Some(Val::Null);
@@ -247,7 +266,7 @@ impl MethodName {
             Some(Self::mangle(name, param_types))
         };
 
-        Self(name.to_ascii_lowercase(), mangled)
+        Self(name.to_string(), mangled)
     }
 
     pub fn from_args(name: &str, parameters: &[Val]) -> Self {
@@ -258,7 +277,7 @@ impl MethodName {
                 parameters.iter().map(|t| t.ttype().to_string()).collect();
             Some(Self::mangle(name, param_types))
         };
-        Self(name.to_ascii_lowercase(), mangled)
+        Self(name.to_string(), mangled)
     }
 
     pub fn name(&self) -> &str {
@@ -274,9 +293,9 @@ impl MethodName {
 
     fn mangle(name: &str, args: Vec<String>) -> String {
         if args.is_empty() {
-            return name.to_ascii_lowercase();
+            return name.to_string();
         }
-        let mut mangled_name = name.to_ascii_lowercase();
+        let mut mangled_name = name.to_string();
         mangled_name.push('(');
         mangled_name.push_str(&args.join(","));
         mangled_name.push(')');

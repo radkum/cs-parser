@@ -75,9 +75,9 @@ $d = Mul-By-Global 5
 $c + $d
 "#;
 
-let script_result = ps.parse_input(script)?;
-println!("Deobfuscated:\n{}\n", script_result.deobfuscated());
-println!("Output:\n{}\n", script_result.output());
+let program_result = ps.parse_input(script)?;
+println!("Deobfuscated:\n{}\n", program_result.deobfuscated());
+println!("Output:\n{}\n", program_result.output());
 ```
 
 Output: 
@@ -105,8 +105,8 @@ $ilryNQSTt="System.$([cHAR]([ByTE]0x4d)+[ChAR]([byte]0x61)+[chAr](110)+[cHar]([b
 $encoded = [syStem.texT.EncoDInG]::unIcoDe.geTstRiNg([SYSTem.cOnVERT]::froMbasE64striNg("ZABlAGMAbwBkAGUAZAA="));
 "#;
 
-let script_result = ps.parse_input(script)?;
-println!("{}", script_result.deobfuscated());
+let program_result = ps.parse_input(script)?;
+println!("{}", program_result.deobfuscated());
 ```
 
 Output: 
@@ -122,8 +122,8 @@ use ps_parser::CSharpSession;
 
 let mut ps = CSharpSession::new().with_variables(Variables::env()); 
 let input = r#"$env:programfiles"#;
-let script_result = ps.parse_input(input)?;
-println!("{}", script_result.result());
+let program_result = ps.parse_input(input)?;
+println!("{}", program_result.result());
 ```
 
 Output: 
@@ -143,10 +143,10 @@ $b = $a * 2
 Write-Output "Addition: $($a + $b)"
 $var = 1 + "Hello, World!" # Powershell cannot cast string to int
 "#;
-let script_result = ps.parse_input(input)?;
-println!("{}", script_result.tokens().expandable_strings()[0]);
-println!("{}", script_result.tokens().expression()[0]);
-println!("errors: {:?}", script_result.errors());
+let program_result = ps.parse_input(input)?;
+println!("{}", program_result.tokens().expandable_strings()[0]);
+println!("{}", program_result.tokens().expression()[0]);
+println!("errors: {:?}", program_result.errors());
 ```
 
 Output: 
