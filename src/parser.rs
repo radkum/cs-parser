@@ -86,6 +86,12 @@ impl Results {
         }
     }
 }
+enum Access<'a> {
+    Member(&'a str),
+    Element(Val),
+    Method(&'a str, Vec<Val>),
+    Function(Vec<Val>),
+}
 
 #[derive(Parser)]
 #[grammar = "csharp.pest"]
@@ -205,14 +211,6 @@ impl<'a> CSharpSession {
         Ok(program_res.deobfuscated().to_string())
     }
 
-    pub fn env_variables(&self) -> HashMap<String, PsValue> {
-        self.variables
-            .get_env()
-            .into_iter()
-            .map(|(k, v)| (k, v.into()))
-            .collect()
-    }
-
     pub fn session_variables(&self) -> HashMap<String, PsValue> {
         self.variables
             .get_global()
@@ -272,7 +270,7 @@ impl<'a> CSharpSession {
             std::mem::take(&mut self.tokens),
             std::mem::take(&mut self.errors),
             self.variables
-                .script_scope()
+                .get_current_scope()
                 .into_iter()
                 .map(|(k, v)| (k, v.into()))
                 .collect(),
@@ -322,7 +320,7 @@ impl<'a> CSharpSession {
             std::mem::take(&mut self.tokens),
             std::mem::take(&mut self.errors),
             self.variables
-                .script_scope()
+                .get_current_scope()
                 .into_iter()
                 .map(|(k, v)| (k, v.into()))
                 .collect(),
@@ -377,21 +375,11 @@ impl<'a> CSharpSession {
         Ok((script_last_output, self.results.pop().unwrap_or_default()))
     }
 
-    fn add_function(
-        &mut self,
-        name: String,
-        func: ScriptBlock,
-        scope: Option<Scope>,
-    ) -> ParserResult<Val> {
+    fn add_function(&mut self, name: String, func: ScriptBlock) -> ParserResult<Val> {
         // let func_str= func.to_function(&name, &scope);
         // self.add_deobfuscated_statement(func_str);
 
-        if let Some(Scope::Global) = &scope {
-            self.variables.add_global_function(name.clone(), func);
-        } else {
-            self.variables.add_script_function(name.clone(), func);
-        }
-
+        self.variables.add_global_function(name.clone(), func);
         Err(ParserError::Skip)
     }
 
@@ -496,7 +484,8 @@ impl<'a> CSharpSession {
         let function_body_token = pair.next().unwrap();
         let mut script_block = self.parse_statements_block(function_body_token)?;
         script_block = script_block.with_params(fn_header.params().clone());
-        let _ = self.add_function(fn_header.name().to_string(), script_block, None);
+        self.variables
+            .add_global_function(fn_header.name().to_string(), script_block);
         Ok(())
     }
 
@@ -593,7 +582,10 @@ impl<'a> CSharpSession {
                 let token = token.into_inner().next().unwrap();
                 //todo: throw, return or exit
                 let val = if let Some(expression_token) = token.into_inner().next() {
-                    println!("Evaluating flow control expression: {}", expression_token.as_str());
+                    println!(
+                        "Evaluating flow control expression: {}",
+                        expression_token.as_str()
+                    );
                     self.eval_expression(expression_token)
                 } else {
                     Ok(Val::Null)
@@ -694,7 +686,7 @@ impl<'a> CSharpSession {
         let mut properties = ClassProperties::new();
 
         for assignment_token in enum_body_pairs {
-            let (var_name, variable) = self.parse_assigment_exp(assignment_token)?;
+            let (var_name, variable) = self.parse_enum_assign_exp(assignment_token)?;
             properties.add_property(var_name.name, Some(ValType::Int), Some(variable));
         }
         let class_type = ClassType::new(
@@ -723,7 +715,7 @@ impl<'a> CSharpSession {
     fn parse_field_declaration(
         &mut self,
         token: Pair<'a>,
-    ) -> ParserResult<(VarName, Option<ValType>, Option<Val>)> {
+    ) -> ParserResult<(VarName, Option<ValType>)> {
         check_rule!(token, Rule::field_declaration);
         let mut pair = token.into_inner();
 
@@ -731,19 +723,25 @@ impl<'a> CSharpSession {
         let _field_attr = self.parse_field_attribute(field_attribute_token)?;
 
         let var_type_token = pair.next().unwrap();
-        let ttype = self.eval_type_literal(var_type_token)?;
+        let ttype = match self.eval_type_literal(var_type_token) {
+            Ok(ttype) => Some(ttype),
+            Err(e) => {
+                log::debug!("Error parsing type literal: {:?}", e);
+                None
+            }
+        };
 
-        let var_name_token = pair.next().unwrap();
-        let var_name = self.parse_assignable_variable(var_name_token)?.0;
+        let variable_token = pair.next().unwrap();
+        check_rule!(variable_token, Rule::variable);
+        let var_name = Self::parse_variable(variable_token)?;
 
-        let _ = self.set_variable(&var_name, Val::Null);
-        Ok((var_name, Some(ttype), None))
+        Ok((var_name, ttype))
     }
 
-    fn parse_field_initialization(
+    fn eval_field_initialization(
         &mut self,
         token: Pair<'a>,
-    ) -> ParserResult<(VarName, Option<ValType>, Option<Val>)> {
+    ) -> ParserResult<(VarName, Option<ValType>, Val)> {
         let mut pair = token.into_inner();
 
         let field_attribute_token = pair.next().unwrap();
@@ -760,10 +758,34 @@ impl<'a> CSharpSession {
             }
         };
 
-        let token = pair.next().unwrap();
-        let (var_name, variable) = self.parse_assigment_exp(token)?;
-        let _ = self.set_variable(&var_name, variable);
-        Ok((var_name, val_type, None))
+        let variable_token = pair.next().unwrap();
+        check_rule!(variable_token, Rule::variable);
+        let var_name = Self::parse_variable(variable_token)?;
+
+        let expression_token = pair.next().unwrap();
+        check_rule!(expression_token, Rule::expression);
+
+        let right_operand = self.eval_expression(expression_token)?;
+        if let Some(ttype) = &val_type {
+            right_operand.cast_to_type(&ttype)?;
+        }
+
+        Ok((var_name, val_type, right_operand))
+    }
+
+    fn parse_enum_assign_exp(&mut self, token: Pair<'a>) -> ParserResult<(VarName, Val)> {
+        let mut pair = token.into_inner();
+
+        let variable_token = pair.next().unwrap();
+        check_rule!(variable_token, Rule::variable);
+        let var_name = Self::parse_variable(variable_token)?;
+
+        let expression_token = pair.next().unwrap();
+        check_rule!(expression_token, Rule::expression);
+
+        let right_operand = self.eval_expression(expression_token)?;
+
+        Ok((var_name, Val::Int(right_operand.cast_to_int()?)))
     }
 
     fn parse_class_statement(&mut self, token: Pair<'a>) -> ParserResult<()> {
@@ -819,14 +841,13 @@ impl<'a> CSharpSession {
         for member_token in class_body_pairs {
             match member_token.as_rule() {
                 Rule::field_declaration => {
-                    let (var_name, ttype, default_val) =
-                        self.parse_field_declaration(member_token)?;
-                    properties.add_property(var_name.name, ttype, default_val);
+                    let (var_name, ttype) = self.parse_field_declaration(member_token)?;
+                    properties.add_property(var_name.name, ttype, None);
                 }
                 Rule::field_initialization => {
                     let (var_name, ttype, default_val) =
-                        self.parse_field_initialization(member_token)?;
-                    properties.add_property(var_name.name, ttype, default_val);
+                        self.eval_field_initialization(member_token)?;
+                    properties.add_property(var_name.name, ttype, Some(default_val));
                 }
                 Rule::function_statement => continue,
                 Rule::statement_terminator => continue,
@@ -873,18 +894,23 @@ impl<'a> CSharpSession {
         let x = match inner_token.as_rule() {
             Rule::assignment_exp => self.eval_assignment_exp(inner_token),
             Rule::field_initialization => {
-                let _ = self.parse_field_initialization(inner_token);
+                let (var_name, _, value) = self.eval_field_initialization(inner_token)?;
+                self.set_variable(&var_name, value);
                 Ok(Val::Null)
             }
             Rule::field_declaration => {
-                let _ = self.parse_field_declaration(inner_token);
+                let (var_name, _ttype) = self.parse_field_declaration(inner_token)?;
+                self.set_variable(&var_name, Val::Null);
+                Ok(Val::Null)
+            }
+            Rule::variable_access => {
+                self.eval_variable_access(inner_token);
                 Ok(Val::Null)
             }
             Rule::expression => self.eval_expression(inner_token),
             _ => unexpected_token!(inner_token),
         };
-        println!("Eval code line result: {:?}", x);
-        println!("Eval code line result: {:?}", self.variables.script_scope());
+
         x
     }
 
@@ -1094,33 +1120,100 @@ impl<'a> CSharpSession {
     //     Ok(var)
     // }
 
-    fn parse_assignable_variable(
-        &mut self,
-        token: Pair<'a>,
-    ) -> ParserResult<(VarName, Option<Pairs<'a>>)> {
-        check_rule!(token, Rule::assignable_variable);
-        let mut pair = token.into_inner();
-        let token = pair.next().unwrap();
-        match token.as_rule() {
-            Rule::variable => {
-                let var_name = Self::parse_variable(token)?;
+    fn eval_variable_access<'b>(&'b mut self, token: Pair<'b>) -> ParserResult<&'b mut Val> {
+        fn get_member_name(token: Pair<'_>) -> &'_ str {
+            token.into_inner().next().unwrap().as_str()
+        }
 
-                Ok((var_name, None))
+        let mut pairs = token.into_inner();
+        let var_token = pairs.next().unwrap();
+        let var_name = Self::parse_variable(var_token)?;
+
+        let mut access_vec = vec![];
+        for access_token in pairs {
+            let access = match access_token.as_rule() {
+                Rule::member_access => Access::Member(get_member_name(access_token)),
+                Rule::method_invocation => {
+                    let mut pairs = access_token.into_inner();
+                    let member_access = pairs.next().unwrap();
+                    check_rule!(member_access, Rule::member_access);
+                    let member_name = get_member_name(member_access);
+
+                    let argument_list_token = pairs.next().unwrap();
+                    check_rule!(argument_list_token, Rule::argument_list);
+
+                    Access::Method(member_name, self.eval_argument_list(argument_list_token)?)
+                }
+                Rule::argument_list => Access::Function(self.eval_argument_list(access_token)?),
+                Rule::element_access =>
+                //Ok(self.eval_element_access_ref(token, object)?),
+                {
+                    let mut pairs = access_token.into_inner();
+                    let index_token = pairs.next().unwrap();
+                    check_rule!(index_token, Rule::expression);
+                    Access::Element(self.eval_expression(index_token)?)
+                }
+                _ => unexpected_token!(access_token),
+            };
+            access_vec.push(access);
+        }
+        let Some(mut variable) = self.variables.get_mut(&var_name) else {
+            return Err(ParserError::VariableError(VariableError::NotDefined(
+                var_name.name,
+            )));
+        };
+
+        for access in access_vec {
+            variable = match access {
+                Access::Member(name) => variable.member(name)?,
+                Access::Element(index) => variable.get_index_ref(index)?,
+                Access::Function(index) => todo!(),
+                Access::Method(name, args) => {
+                    let mangled_name = MethodName::from_args(name, &args);
+
+                    match variable {
+                        Val::RuntimeType(rt) => {
+                            let mut call = rt.static_method(mangled_name)?;
+                            call(args, self);
+                        }
+                        _ => {
+                            // Clone the value to get the method closure without borrowing `object`
+                            let mut call = {
+                                let owned = variable.clone();
+                                owned.method(mangled_name)?
+                            };
+                            call(variable, args, self);
+                        }
+                    }
+                    continue;
+                }
+            };
+        }
+
+        Ok(variable)
+    }
+
+    fn call_method<'b>(
+        &mut self,
+        object: &'b mut Val,
+        method_name: &str,
+        args: Vec<Val>,
+    ) -> ParserResult<Val> {
+        let mangled_name = MethodName::from_args(method_name, &args);
+
+        match object {
+            Val::RuntimeType(rt) => {
+                let mut call = rt.static_method(mangled_name)?;
+                call(args, self).map_err(|e| e.into())
             }
-            Rule::variable_access => {
-                let mut pairs = token.into_inner();
-                let var_token = pairs.next().unwrap();
-                let var_name = Self::parse_variable(var_token)?;
-                // let mut object = &mut var;
-                // for token in pairs {
-                //     object = self.variable_access(token, &mut object)?;
-                // }
-                Ok((var_name, Some(pairs)))
+            _ => {
+                // Clone the value to get the method closure without borrowing `object`
+                let mut call = {
+                    let owned = object.clone();
+                    owned.method(mangled_name)?
+                };
+                call(object, args, self).map_err(|e| e.into())
             }
-            Rule::value_access => self
-                .skip_value_access(token)
-                .map(|()| (Default::default(), None)),
-            _ => unexpected_token!(token),
         }
     }
 
@@ -1217,7 +1310,7 @@ impl<'a> CSharpSession {
         Ok(member_name)
     }
 
-    fn eval_method_invocation(
+    fn parse_method_invocation(
         &mut self,
         token: Pair<'a>,
         object: &Val,
@@ -1289,7 +1382,17 @@ impl<'a> CSharpSession {
         }
         match token.as_rule() {
             Rule::member_access => Ok(object.member(get_member_name(token))?),
-            Rule::element_access => Ok(self.eval_element_access_ref(token, object)?),
+            Rule::element_access =>
+            //Ok(self.eval_element_access_ref(token, object)?),
+            {
+                let mut pairs = token.into_inner();
+
+                let index_token = pairs.next().unwrap();
+                check_rule!(index_token, Rule::expression);
+                let index = self.eval_expression(index_token)?;
+
+                Ok(object.get_index_ref(index)?)
+            }
             _ => unexpected_token!(token),
         }
     }
@@ -1321,7 +1424,7 @@ impl<'a> CSharpSession {
                 _ => object.readonly_member(get_member_name(token))?,
             },
             Rule::method_invocation => {
-                let (function_name, args) = self.eval_method_invocation(token, object)?;
+                let (function_name, args) = self.parse_method_invocation(token, object)?;
                 let mangled_name = MethodName::from_args(function_name.as_str(), &args);
 
                 match object {
@@ -1335,7 +1438,10 @@ impl<'a> CSharpSession {
                             let owned = object.clone();
                             owned.method(mangled_name)?
                         };
-                        call(object, args, self)?
+                        println!("Calling object: {}", object);
+                        let x = call(object, args, self)?;
+                        println!("Calling object: {}", object);
+                        x
                     }
                 }
             }
@@ -1416,12 +1522,18 @@ impl<'a> CSharpSession {
         let mut pairs = token.into_inner();
         let token = pairs.next().unwrap();
 
-        let mut object = self.eval_value(token)?;
+        let var_name = Self::parse_variable(token)?;
+        let mut object = self
+            .variables
+            .get_mut(&var_name)
+            .ok_or(ParserError::VariableError(VariableError::NotDefined(
+                var_name.name,
+            )))?;
         for token in pairs {
-            object = self.value_access(token, &mut object)?;
+            *object = self.value_access(token, &mut object)?;
         }
-        log::debug!("Success eval_access: {:?}", object);
-        Ok(object)
+        println!("Success eval_access: {:?}", object);
+        Ok(object.clone())
     }
 
     fn parse_access(&mut self, token: Pair<'a>) -> ParserResult<Val> {
@@ -1463,7 +1575,7 @@ impl<'a> CSharpSession {
                 }
                 Rule::method_invocation => {
                     let (method_name, args) = self
-                        .eval_method_invocation(token.clone(), &Val::ScriptText(object.clone()))?;
+                        .parse_method_invocation(token.clone(), &Val::ScriptText(object.clone()))?;
                     log::trace!("Method: {:?} {:?}", &method_name, &args);
 
                     object = format!(
@@ -2153,7 +2265,7 @@ impl<'a> CSharpSession {
                 _ => unexpected_token!(token),
             };
 
-            res = res.cast_from_type(&runtime_object).unwrap_or_default();
+            res = res.cast_to_type(&runtime_object).unwrap_or_default();
         }
 
         Ok(res)
@@ -2309,7 +2421,7 @@ impl<'a> CSharpSession {
             Rule::unary_exp => self.eval_unary_exp(token)?,
             _ => unexpected_token!(token),
         };
-        Ok(res.cast_from_type(&val_type)?)
+        Ok(res.cast_to_type(&val_type)?)
     }
 
     fn eval_parenthesized_expression(&mut self, token: Pair<'a>) -> ParserResult<Val> {
@@ -2318,31 +2430,15 @@ impl<'a> CSharpSession {
         self.eval_expression(inner)
     }
 
-    fn parse_assigment_exp(&mut self, token: Pair<'a>) -> ParserResult<(VarName, Val)> {
+    fn eval_assignment_exp(&mut self, token: Pair<'a>) -> ParserResult<Val> {
         check_rule!(token, Rule::assignment_exp);
-        let mut specified_type = None;
 
         let mut pairs = token.into_inner();
-        let mut token = pairs.next().unwrap();
-        if token.as_rule() == Rule::type_literal {
-            specified_type = Some(self.eval_type_literal(token)?);
-            token = pairs.next().unwrap();
-        }
-        check_rule!(token, Rule::assignable_variable);
+        let assign_var_token = pairs.next().unwrap();
+        check_rule!(assign_var_token, Rule::assignable_variable);
 
-        let (var_name, access) = self.parse_assignable_variable(token)?;
-        let mut variable = self.variables.get(&var_name).unwrap_or_default();
-        let mut accessed_elem = &mut variable;
-
-        // sometimes we have variable access like $a[0].Property, and we need access
-        // property by reference
-        if let Some(access) = access {
-            for token in access {
-                accessed_elem = self.variable_access(token, accessed_elem)?;
-            }
-        }
         let assignment_op = pairs.next().unwrap();
-        check_rule!(assignment_op, Rule::assignment_op);
+        check_rule!(assignment_op, Rule::modify_and_assign_op);
 
         //get operand
         let op = assignment_op.into_inner().next().unwrap();
@@ -2353,6 +2449,10 @@ impl<'a> CSharpSession {
 
         let right_op = self.eval_expression(right_token.clone())?;
 
+        // if variable is being initialized, we don't need to eval it
+        let variable = self.eval_variable_access(assign_var_token)?;
+        let accessed_elem = variable;
+
         let Some(pred) = pred else {
             log::error!("No arithmetic function for operator: {}", op.as_str());
             return Err(ParserError::NotImplemented(format!(
@@ -2362,10 +2462,9 @@ impl<'a> CSharpSession {
         };
 
         *accessed_elem = pred(accessed_elem.clone(), right_op)?;
-        if let Some(runtime_type) = specified_type {
-            *accessed_elem = accessed_elem.cast_from_type(&runtime_type)?;
-        }
-        Ok((var_name, variable))
+        // println!("Assigning variable: {} = {:?}", var_name, variable);
+        // Ok((var_name, variable))
+        Ok((accessed_elem.clone()))
     }
 
     fn set_variable(&mut self, var_name: &VarName, value: Val) -> ParserResult<Val> {
@@ -2374,11 +2473,6 @@ impl<'a> CSharpSession {
         self.add_deobfuscated_statement(format!("{} = {}", var_name, value.cast_to_script()));
 
         Ok(Val::NonDisplayed(Box::new(value)))
-    }
-
-    fn eval_assignment_exp(&mut self, token: Pair<'a>) -> ParserResult<Val> {
-        let (var_name, variable) = self.parse_assigment_exp(token)?;
-        self.set_variable(&var_name, variable)
     }
 
     fn push_scope_session(&mut self) {

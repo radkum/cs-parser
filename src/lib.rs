@@ -1216,7 +1216,7 @@ namespace Editor {
         
         private static string Transform2(string in) {
             StringBuilder builder = new StringBuilder(in + "Content");    
-
+            builder.Append('t');
             return builder.ToString();
         }
         //private static readonly string CLASS1 = Methods.Transform("Scan");
@@ -1227,7 +1227,7 @@ namespace Editor {
 
         let program_res = p.parse_input(input).unwrap();
         println!("Erros: {:?}", program_res.errors());
-        println!("{:?}", program_res.tokens());
+        //println!("{:?}", program_res.tokens());
         assert!(program_res.tokens().string_set().contains("ScanContent"));
         assert!(
             program_res

@@ -25,15 +25,12 @@ pub type VariableMap = HashMap<String, Val>;
 
 #[derive(Clone, Default)]
 pub struct Variables {
-    env: VariableMap,
     global_scope: VariableMap,
-    script_scope: VariableMap,
-    scope_sessions_stack: Vec<VariableMap>,
-    state: State,
+    variables_stack: Vec<VariableMap>,
+    global_functions: FunctionMap,
+    state: Stack,
     force_var_eval: bool,
     values_persist: bool,
-    global_functions: FunctionMap,
-    script_functions: FunctionMap,
     //special variables
     // status: bool, // $?
     // first_token: Option<String>,
@@ -42,11 +39,7 @@ pub struct Variables {
 }
 
 #[derive(Default, Clone)]
-enum State {
-    #[default]
-    Script,
-    Stack(u32),
-}
+struct Stack(u32);
 
 impl Variables {
     const PREDEFINED_VARIABLES: phf::Map<&'static str, Val> = phf_map! {
@@ -71,11 +64,9 @@ impl Variables {
     }
 
     pub fn init(&mut self) {
-        if !self.values_persist {
-            self.script_scope.clear();
-        }
-        self.scope_sessions_stack.clear();
-        self.state = State::Script;
+        self.variables_stack.clear();
+        self.variables_stack.push(VariableMap::new());
+        self.state = Stack::default();
     }
 
     fn load(
@@ -90,7 +81,6 @@ impl Variables {
 
                 let var_name = match section_name.as_str() {
                     "global" => VarName::new_with_scope(Scope::Global, key.to_lowercase()),
-                    "script" => VarName::new_with_scope(Scope::Script, key.to_lowercase()),
                     _ => {
                         continue;
                     }
@@ -118,28 +108,12 @@ impl Variables {
         Ok(())
     }
 
-    pub(crate) fn script_scope(&self) -> VariableMap {
-        self.script_scope.clone()
-    }
-
-    pub(crate) fn get_env(&self) -> VariableMap {
-        self.env.clone()
-    }
-
     pub(crate) fn get_global(&self) -> VariableMap {
         self.global_scope.clone()
     }
 
-    pub(crate) fn add_script_function(&mut self, name: String, func: ScriptBlock) {
-        self.script_functions.insert(name, func);
-    }
-
     pub(crate) fn add_global_function(&mut self, name: String, func: ScriptBlock) {
         self.global_functions.insert(name, func);
-    }
-
-    pub(crate) fn clear_script_functions(&mut self) {
-        self.script_functions.clear();
     }
 
     /// Creates a new empty Variables container.
@@ -276,39 +250,25 @@ impl Variables {
     fn const_map_from_scope(&self, scope: &Scope) -> &VariableMap {
         match scope {
             Scope::Global => &self.global_scope,
-            Scope::Script => &self.script_scope,
-            Scope::Env => &self.env,
             Scope::Local => match self.state {
-                State::Script => &self.script_scope,
-                State::Stack(depth) => {
-                    if depth < self.scope_sessions_stack.len() as u32 {
-                        &self.scope_sessions_stack[depth as usize]
-                    } else {
-                        &self.script_scope
-                    }
-                }
+                Stack(depth) => &self.variables_stack[depth as usize],
             },
         }
     }
 
-    fn local_scope(&mut self) -> &mut VariableMap {
-        match self.state {
-            State::Script => &mut self.script_scope,
-            State::Stack(depth) => {
-                if depth < self.scope_sessions_stack.len() as u32 {
-                    &mut self.scope_sessions_stack[depth as usize]
-                } else {
-                    &mut self.script_scope
-                }
-            }
-        }
+    pub(crate) fn current_scope(&mut self) -> &mut VariableMap {
+        let depth = self.state.0;
+        &mut self.variables_stack[depth as usize]
     }
+
+    pub(crate) fn get_current_scope(&mut self) -> VariableMap {
+        self.current_scope().clone()
+    }
+
     fn map_from_scope(&mut self, scope: &Scope) -> &mut VariableMap {
         match scope {
             Scope::Global => &mut self.global_scope,
-            Scope::Script => &mut self.script_scope,
-            Scope::Env => &mut self.env,
-            Scope::Local => self.local_scope(),
+            Scope::Local => self.current_scope(),
         }
     }
 
@@ -357,14 +317,10 @@ impl Variables {
             }
 
             // No scope specified, check local scopes first, then globals
-            for local_scope in self.scope_sessions_stack.iter_mut().rev() {
+            for local_scope in self.variables_stack.iter_mut().rev() {
                 if local_scope.contains_key(name_str) {
                     return Ok(local_scope.get_mut(name_str));
                 }
-            }
-
-            if self.script_scope.contains_key(name_str) {
-                return Ok(self.script_scope.get_mut(name_str));
             }
 
             if self.global_scope.contains_key(name_str) {
@@ -401,6 +357,18 @@ impl Variables {
         }
     }
 
+    pub(crate) fn get_mut(&mut self, var_name: &VarName) -> Option<&mut Val> {
+        let Ok(var) = self.find_mut_variable_in_scopes(var_name) else {
+            log::error!(
+                "Failed to get mutable variable: {:?}. It's read-only",
+                var_name
+            );
+            return None;
+        };
+
+        var
+    }
+
     fn find_variable_in_scopes(&self, var_name: &VarName) -> Option<&Val> {
         let name = var_name.name.to_string();
         let name_str = name.as_str();
@@ -414,14 +382,10 @@ impl Variables {
             }
 
             // No scope specified, check local scopes first, then globals
-            for local_scope in self.scope_sessions_stack.iter().rev() {
+            for local_scope in self.variables_stack.iter().rev() {
                 if local_scope.contains_key(name_str) {
                     return local_scope.get(name_str);
                 }
-            }
-
-            if self.script_scope.contains_key(name_str) {
-                return self.script_scope.get(name_str);
             }
 
             if self.global_scope.contains_key(name_str) {
@@ -433,23 +397,19 @@ impl Variables {
     }
 
     pub(crate) fn push_scope_session(&mut self) {
-        let current_map = self.local_scope();
+        let current_map = self.current_scope();
         let new_map = current_map.clone();
 
-        self.scope_sessions_stack.push(new_map);
-        self.state = State::Stack(self.scope_sessions_stack.len() as u32 - 1);
+        self.variables_stack.push(new_map);
+        self.state = Stack(self.variables_stack.len() as u32 - 1);
     }
 
     pub(crate) fn pop_scope_session(&mut self) {
-        match self.scope_sessions_stack.len() {
+        match self.variables_stack.len() {
             0 => {} /* unreachable */
-            1 => {
-                self.scope_sessions_stack.pop();
-                self.state = State::Script;
-            }
             _ => {
-                self.scope_sessions_stack.pop();
-                self.state = State::Stack(self.scope_sessions_stack.len() as u32 - 1);
+                self.variables_stack.pop();
+                self.state = Stack(self.variables_stack.len() as u32 - 1);
             }
         }
     }

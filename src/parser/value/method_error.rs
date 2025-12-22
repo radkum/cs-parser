@@ -16,6 +16,9 @@ pub enum MethodError {
     #[error("Incorrect arguments \"{1:?}\" for method \"{0}\"")]
     IncorrectArgs(String, Vec<String>),
 
+    #[error("Incorrect arguments count. Expected \"{1}\" but found \"{0}\" for method \"{2}\"")]
+    IncorrectArgumentCount(usize, usize, String),
+
     #[error("RuntimeError: {}", .0.to_string())]
     RuntimeError(String),
 

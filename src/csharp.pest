@@ -19,10 +19,11 @@ new_expression = { "new" ~ (list_initialization | constructor )}
 list_initialization = { type_literal? ~ (initializer_list | curly_arg_list | bracket_arg_list) }
 constructor = {type_literal ~ parenthesis_arg_list? ~ initializer_list?}
 
-assignment_exp = { assignable_variable ~ assignment_op ~ expression }
-field_declaration = { field_attribute ~ type_literal ~ assignable_variable  }
-field_initialization = { field_attribute ~ type_literal ~ assignment_exp}
-code_line = { (assignment_exp | field_initialization | field_declaration | expression) ~ ";" }
+assignment_exp = { variable_access ~ modify_and_assign_op ~ expression }
+enum_assign_exp = { variable ~  "=" ~ expression }
+field_initialization = { field_attribute ~ type_literal ~ variable ~  "=" ~ expression  }
+field_declaration = { field_attribute ~ type_literal ~ variable }
+code_line = { (assignment_exp | field_initialization | field_declaration | variable_access | expression) ~ ";" }
 
 //---------------------------------- BLOCKS
 parameter_list = { fn_parameter ~ ("," ~ fn_parameter)* }
@@ -39,11 +40,11 @@ statements = { statement* }
 statement = _{ 
 	if_statement 
     | labeled_statement
+    | flow_control_statement
     | function_statement 
     | function_declaration
     | class_statement
     | enum_statement
-    | flow_control_statement
     | try_statement
     | code_line
     | statement_terminator
@@ -155,7 +156,7 @@ class_body = {
 access_modifier = { "new"? ~ ("public" | "private" | "protected" | "internal") }
 // -----------------------ENUM
 enum_statement = { function_header_prefix  ~ "enum" ~ simple_name ~ inheritance? ~ (statement_terminator | enum_body) }
-enum_body = { "{" ~ assignment_exp ~("," ~ assignment_exp)* ~ "}" ~ ";"? }
+enum_body = { "{" ~ enum_assign_exp ~ ("," ~ enum_assign_exp)* ~ "}" ~ ";"? }
 enum_member = { simple_name ~ (("=" ~ decimal_integer) | ("=" ~ hex_integer) )? }
 
 // ---------------------- EXPRESSION
@@ -217,7 +218,7 @@ primary_expression = {
 post_inc_expression = { variable ~ "++" }
 post_dec_expression = { variable ~ "--" }
 
-value_access = { value ~ 
+value_access = { variable ~ 
     (
         parenthesis_arg_list
         | method_invocation
@@ -236,17 +237,18 @@ curly_arg_list = _{ "{" ~ argument_list? ~ "}" }
 bracket_arg_list = _{ "[" ~ argument_list? ~ "]" }
 
 // --------------- EXPRESSION
-assignable_variable = { variable_access | value_access | variable}
 member_chain = @{ member_name ~ member_access*}
 variable_access = { variable ~ 
     (
-        member_access
+        parenthesis_arg_list
+        | method_invocation
+        | member_access
         | element_access
-    )+
+    )*
 }
 prefix_assign_op = { (additive_op | multiplicative_op) }
 assign_op = { "=" }
-assignment_op = {prefix_assign_op? ~ assign_op }
+modify_and_assign_op = {prefix_assign_op? ~ assign_op }
 
 // ---------------- COMMAND
 command = ${(

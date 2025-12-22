@@ -22,16 +22,18 @@ impl RuntimeTypeTrait for StringBuilderType {
         if args.len() == 1 {
             match &args[0] {
                 Val::String(PsString(s)) => {
-                    let buffer = s.as_bytes().to_vec();
-                    let x = Ok(Val::RuntimeObject(Box::new(StringBuilder { buffer })));;
+                    let x = Ok(Val::RuntimeObject(Box::new(StringBuilder {
+                        buffer_string: Val::String(PsString(s.clone())),
+                    })));
                     //println!("StringBuilder initialized with string: {:?}", x);
                     return x;
                 }
                 Val::Int(size) => {
                     let capacity = *size as usize;
-                    let mut buffer = Vec::with_capacity(capacity * 2);
-                    buffer.resize(capacity * 2, 0u8);
-                    return Ok(Val::RuntimeObject(Box::new(StringBuilder { buffer })));
+                    let mut buffer = String::with_capacity(capacity * 2);
+                    return Ok(Val::RuntimeObject(Box::new(StringBuilder {
+                        buffer_string: Val::String(PsString(buffer)),
+                    })));
                 }
                 _ => {}
             }
@@ -67,12 +69,12 @@ impl RuntimeTypeTrait for StringBuilderType {
 
 #[derive(Debug, Clone)]
 struct StringBuilder {
-    buffer: Vec<u8>,
+    buffer_string: Val,
 }
 
 impl std::fmt::Display for StringBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "StringBuilder {{ {:?} }}", self.buffer)
+        write!(f, "StringBuilder {{ {:?} }}", self.buffer_string)
     }
 }
 
@@ -81,13 +83,22 @@ impl RuntimeObjectTrait for StringBuilder {
         println!("StringBuilder method called: {}", method_name.name());
         match method_name.name() {
             "Append" => Ok(Box::new(append)),
-            "toString" => Ok(Box::new(to_string)),
+            "ToString" => Ok(Box::new(to_string)),
             _ => Err(MethodError::MethodNotFound(method_name.name().to_string()).into()),
         }
     }
+    fn member(&mut self, name: &str) -> RuntimeResult<&mut Val> {
+        println!("member {name} called: {:?}", self);
+        match name {
+            "buffer_string" => Ok(&mut self.buffer_string),
+            _ => Err(RuntimeError::MemberNotFound(name.to_string())),
+        }
+    }
+
     fn readonly_member(&mut self, name: &str) -> RuntimeResult<Val> {
-        match name.to_ascii_lowercase().as_str() {
-            "buffer_string" => Ok(Val::String(string_from_vec(self.buffer.clone()).into())),
+        println!("readonly_member {name} called: {:?}", self);
+        match name {
+            "buffer_string" => Ok(self.buffer_string.clone()),
             _ => Err(RuntimeError::MemberNotFound(name.to_string())),
         }
     }
@@ -100,14 +111,35 @@ impl RuntimeObjectTrait for StringBuilder {
 }
 
 fn to_string(this: &mut Val, _: Vec<Val>, _: &mut CSharpSession) -> MethodResult<Val> {
+    println!("StringBuilder.ToString called: {:?}", this);
     if let Val::RuntimeObject(ro) = this {
-        ro.readonly_member("buffer_string")?;
+        Ok(ro.readonly_member("buffer_string")?)
+    } else {
+        Err(MethodError::NotImplemented("GetString".into()).into())
     }
-    Err(MethodError::NotImplemented("GetString".into()).into())
 }
 
-fn append(this: &mut Val, _: Vec<Val>, _: &mut CSharpSession) -> MethodResult<Val> {
-    todo!()
+fn append(this: &mut Val, args: Vec<Val>, _: &mut CSharpSession) -> MethodResult<Val> {
+    println!("StringBuilder.Append called: {:?}", this);
+    if args.len() != 1 {
+        return Err(MethodError::IncorrectArgumentCount(
+            1,
+            args.len(),
+            "Append".into(),
+        ));
+    }
+
+    let ch = args[0].cast_to_char()?;
+    if let Val::RuntimeObject(ro) = this {
+        let mut buffer_string = ro.member("buffer_string")?;
+        if let Val::String(PsString(s)) = &mut buffer_string {
+            s.push(ch as u8 as char);
+            println!("StringBuilder after Append: {:?}", this);
+        }
+        Ok(Val::Null)
+    } else {
+        Err(MethodError::NotImplemented("Append".into()).into())
+    }
 }
 
 fn string_from_vec(mut buf: Vec<u8>) -> String {

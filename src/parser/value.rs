@@ -482,10 +482,10 @@ impl Val {
                 "RuntimeType".to_string(),
             ))?;
         };
-        self.cast_from_type(&rt.type_definition())
+        self.cast_to_type(&rt.type_definition())
     }
 
-    pub(crate) fn cast_from_type(&self, ttype: &ValType) -> ValResult<Self> {
+    pub(crate) fn cast_to_type(&self, ttype: &ValType) -> ValResult<Self> {
         Ok(match ttype {
             ValType::Null => Err(ValError::UnknownType("Null".to_string()))?,
             ValType::Bool => Val::Bool(self.cast_to_bool()),
@@ -738,7 +738,7 @@ impl Val {
         };
         if let Some(ttype) = ttype {
             for elem in arr.iter_mut() {
-                *elem = elem.cast_from_type(&ttype)?;
+                *elem = elem.cast_to_type(&ttype)?;
             }
         }
         Ok(arr)

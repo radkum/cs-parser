@@ -13,9 +13,7 @@ impl Variables {
         &mut self,
         name: &str,
     ) -> Option<CallablePredType<Val, CommandOutput>> {
-        if let Some(fun) = self.script_functions.get(name).cloned() {
-            Self::get_function_from_script_block(fun)
-        } else if let Some(fun) = self.global_functions.get(name).cloned() {
+        if let Some(fun) = self.global_functions.get(name).cloned() {
             Self::get_function_from_script_block(fun)
         } else {
             None
