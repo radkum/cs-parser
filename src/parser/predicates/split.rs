@@ -21,7 +21,7 @@ impl SplitPred {
     }
 }
 
-pub fn powershell_split(
+pub fn csharp_split(
     input: &str,
     pattern: Option<String>,
     max_splits: Option<usize>,
@@ -37,7 +37,7 @@ pub fn powershell_split(
         else {
             return Ok(vec![]);
         };
-        return powershell_split_preserve_delimeter(
+        return csharp_split_preserve_delimeter(
             input,
             pat.to_string(),
             max_splits,
@@ -58,7 +58,7 @@ pub fn powershell_split(
     Ok(result)
 }
 
-pub fn powershell_split_preserve_delimeter(
+pub fn csharp_split_preserve_delimeter(
     input: &str,
     pattern: String,
     max_splits: Option<usize>,
@@ -132,7 +132,7 @@ pub fn split(input: Val, args: Val, case_insensitive: bool) -> Val {
     let mut res = vec![];
     let input_array = input.cast_to_array();
     for i in input_array.into_iter() {
-        if let Ok(v) = powershell_split(
+        if let Ok(v) = csharp_split(
             &i.cast_to_string(),
             pattern.clone(),
             max_splits,
@@ -203,7 +203,7 @@ mod tests {
         let input = r#"
 $nestedData = @{
     Users = @(
-        @{ Name = "Alice"; Age = 30; Skills = @("PowerShell", "Python") }
+        @{ Name = "Alice"; Age = 30; Skills = @("C++", "Python") }
         @{ Name = "Bob"; Age = 25; Skills = @("Java", "C#") }
     )
     Settings = @{

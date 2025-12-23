@@ -1,21 +1,21 @@
 use std::fmt::Display;
 
-// PowerShell-like output streams
+// CSharp-like output streams
 #[derive(Debug, Clone, PartialEq)]
-pub enum PowerShellStream {
+pub enum CSharpStream {
     Success, // Stream 1 - regular output
     Error,   // Stream 2 - errors
     Warning, // Stream 3 - warnings
     Verbose, // Stream 4 - verbose messages
 }
 
-impl Display for PowerShellStream {
+impl Display for CSharpStream {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let msg = match self {
-            PowerShellStream::Success => "",
-            PowerShellStream::Error => "ERROR",
-            PowerShellStream::Warning => "WARNING",
-            PowerShellStream::Verbose => "VERBOSE",
+            CSharpStream::Success => "",
+            CSharpStream::Error => "ERROR",
+            CSharpStream::Warning => "WARNING",
+            CSharpStream::Verbose => "VERBOSE",
         };
         write!(f, "{}", msg)
     }
@@ -24,7 +24,7 @@ impl Display for PowerShellStream {
 #[derive(Debug, Clone)]
 pub struct StreamMessage {
     pub content: String,
-    pub stream: PowerShellStream,
+    pub stream: CSharpStream,
     pub timestamp: std::time::SystemTime,
 }
 
@@ -42,7 +42,7 @@ impl From<StreamMessage> for String {
 
 impl Display for StreamMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        if self.stream == PowerShellStream::Success {
+        if self.stream == CSharpStream::Success {
             write!(f, "{}", self.content)
         } else {
             write!(
@@ -67,7 +67,7 @@ impl StreamMessage {
     pub fn success(content: String) -> Self {
         StreamMessage {
             content,
-            stream: PowerShellStream::Success,
+            stream: CSharpStream::Success,
             timestamp: std::time::SystemTime::now(),
         }
     }
@@ -75,7 +75,7 @@ impl StreamMessage {
     pub fn warning(message: String) -> Self {
         StreamMessage {
             content: format!("WARNING: {}", message),
-            stream: PowerShellStream::Warning,
+            stream: CSharpStream::Warning,
             timestamp: std::time::SystemTime::now(),
         }
     }
@@ -83,7 +83,7 @@ impl StreamMessage {
     pub fn error(message: String) -> Self {
         StreamMessage {
             content: format!("ERROR: {}", message),
-            stream: PowerShellStream::Error,
+            stream: CSharpStream::Error,
             timestamp: std::time::SystemTime::now(),
         }
     }
@@ -91,7 +91,7 @@ impl StreamMessage {
     pub fn verbose(message: String) -> Self {
         StreamMessage {
             content: format!("VERBOSE: {}", message),
-            stream: PowerShellStream::Verbose,
+            stream: CSharpStream::Verbose,
             timestamp: std::time::SystemTime::now(),
         }
     }

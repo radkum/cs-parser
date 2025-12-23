@@ -1,11 +1,10 @@
-use super::{RuntimeTypeTrait, Val, ValType};
-use crate::parser::ParserResult;
+use super::{RuntimeTypeTrait, ValType};
 
 #[derive(Debug)]
 pub(crate) struct TypeInfo {
-    pub is_public: bool,
-    pub is_serial: bool,
-    pub name: String,
+    pub _is_public: bool,
+    pub _is_serial: bool,
+    pub _name: String,
     pub base_type: Box<dyn RuntimeTypeTrait>,
 }
 

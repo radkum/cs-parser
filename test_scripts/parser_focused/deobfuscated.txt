@@ -68,7 +68,7 @@ function Get-Sum($a, $b) {
 }
 $double_result = 10
 $sum_result = 10
-$text = "PowerShell"
+$text = "CSharp"
 $like_test = $true
 $match_test = $true
 $list = @("apple","banana","cherry")
@@ -76,7 +76,7 @@ $contains_test = $true
 $in_test = $true
 $join_test = "apple, banana, cherry"
 $split_test = @("a","b","c","d")
-$replace_test = "Hello PowerShell"
+$replace_test = "Hello CSharp"
 $band = 1
 $bor = 7
 $bxor = 6

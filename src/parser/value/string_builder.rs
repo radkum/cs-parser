@@ -1,11 +1,11 @@
 use super::{
-    MethodError, MethodResult, RuntimeObjectTrait, RuntimeTypeTrait, Val,
+    MethodError, MethodName, MethodResult, PsString, RuntimeObjectTrait, RuntimeTypeTrait, Val,
     runtime_object::{MethodCallType, RuntimeError, RuntimeResult},
     val_type::ObjectType,
 };
 use crate::{
     CSharpSession,
-    parser::{MethodName, ParserResult, value::PsString},
+    parser::{ParserError, ParserResult},
 };
 
 #[derive(Debug, Clone)]
@@ -30,7 +30,7 @@ impl RuntimeTypeTrait for StringBuilderType {
                 }
                 Val::Int(size) => {
                     let capacity = *size as usize;
-                    let mut buffer = String::with_capacity(capacity * 2);
+                    let buffer = String::with_capacity(capacity * 2);
                     return Ok(Val::RuntimeObject(Box::new(StringBuilder {
                         buffer_string: Val::String(PsString(buffer)),
                     })));
@@ -38,9 +38,10 @@ impl RuntimeTypeTrait for StringBuilderType {
                 _ => {}
             }
         }
-        Err(crate::parser::error::ParserError::NotImplemented(
-            format!("StringBuilder::new for args {:?}", args).into(),
-        ))
+        Err(ParserError::NotImplemented(format!(
+            "StringBuilder::new for args {:?}",
+            args
+        )))
     }
 
     fn static_method(
@@ -51,10 +52,7 @@ impl RuntimeTypeTrait for StringBuilderType {
             "get_static_method called with method_name: {}",
             method_name.name()
         );
-        match method_name.name() {
-            //_ => Ok(Box::new(to_string)),
-            _ => Err(MethodError::MethodNotFound(method_name.name().to_string()).into()),
-        }
+        Err(MethodError::MethodNotFound(method_name.name().to_string()).into())
     }
     fn base_type(&self) -> Box<dyn RuntimeTypeTrait> {
         Box::new(ObjectType {})
@@ -80,7 +78,6 @@ impl std::fmt::Display for StringBuilder {
 
 impl RuntimeObjectTrait for StringBuilder {
     fn method(&self, method_name: MethodName) -> RuntimeResult<MethodCallType> {
-        println!("StringBuilder method called: {}", method_name.name());
         match method_name.name() {
             "Append" => Ok(Box::new(append)),
             "ToString" => Ok(Box::new(to_string)),
@@ -88,7 +85,6 @@ impl RuntimeObjectTrait for StringBuilder {
         }
     }
     fn member(&mut self, name: &str) -> RuntimeResult<&mut Val> {
-        println!("member {name} called: {:?}", self);
         match name {
             "buffer_string" => Ok(&mut self.buffer_string),
             _ => Err(RuntimeError::MemberNotFound(name.to_string())),
@@ -96,7 +92,6 @@ impl RuntimeObjectTrait for StringBuilder {
     }
 
     fn readonly_member(&mut self, name: &str) -> RuntimeResult<Val> {
-        println!("readonly_member {name} called: {:?}", self);
         match name {
             "buffer_string" => Ok(self.buffer_string.clone()),
             _ => Err(RuntimeError::MemberNotFound(name.to_string())),
@@ -111,16 +106,14 @@ impl RuntimeObjectTrait for StringBuilder {
 }
 
 fn to_string(this: &mut Val, _: Vec<Val>, _: &mut CSharpSession) -> MethodResult<Val> {
-    println!("StringBuilder.ToString called: {:?}", this);
     if let Val::RuntimeObject(ro) = this {
         Ok(ro.readonly_member("buffer_string")?)
     } else {
-        Err(MethodError::NotImplemented("GetString".into()).into())
+        Err(MethodError::NotImplemented("GetString".into()))
     }
 }
 
 fn append(this: &mut Val, args: Vec<Val>, _: &mut CSharpSession) -> MethodResult<Val> {
-    println!("StringBuilder.Append called: {:?}", this);
     if args.len() != 1 {
         return Err(MethodError::IncorrectArgumentCount(
             1,
@@ -134,40 +127,11 @@ fn append(this: &mut Val, args: Vec<Val>, _: &mut CSharpSession) -> MethodResult
         let mut buffer_string = ro.member("buffer_string")?;
         if let Val::String(PsString(s)) = &mut buffer_string {
             s.push(ch as u8 as char);
-            println!("StringBuilder after Append: {:?}", this);
         }
         Ok(Val::Null)
     } else {
-        Err(MethodError::NotImplemented("Append".into()).into())
+        Err(MethodError::NotImplemented("Append".into()))
     }
-}
-
-fn string_from_vec(mut buf: Vec<u8>) -> String {
-    //if buf len is odd, then last char should be 0x65533
-    let add_last = if !buf.len().is_multiple_of(2) {
-        buf.pop();
-        true
-    } else {
-        false
-    };
-    let u16_buffer = unsafe { buf.align_to_mut::<u16>().1 };
-
-    let mut ends_with_null = false;
-    if let Some(c) = u16_buffer.last()
-        && *c == 0
-    {
-        ends_with_null = true;
-    }
-
-    let mut res_string = String::from_utf16_lossy(u16_buffer);
-    if ends_with_null {
-        res_string.pop();
-    }
-
-    if add_last {
-        res_string.push('\u{FFFD}');
-    }
-    res_string
 }
 
 #[cfg(test)]

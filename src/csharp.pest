@@ -3,6 +3,7 @@ block_comment = _{ "/*" ~ (!"*/" ~ ANY)* ~ "*/" }
 COMMENT = _{ single_line_comment | block_comment }
 line_continuation = { "`" ~ NEWLINE }
 WHITESPACE     = _{ " " | "\t" | line_continuation | NEWLINE }
+BREAK = _{ " " | "\t" }
 
 program = { SOI ~ program_content ~ EOI }
 program_content = { (namespace_statement | class_statement | using_statement | enum_statement | function_declaration)* }
@@ -23,7 +24,7 @@ assignment_exp = { variable_access ~ modify_and_assign_op ~ expression }
 enum_assign_exp = { variable ~  "=" ~ expression }
 field_initialization = { field_attribute ~ type_literal ~ variable ~  "=" ~ expression  }
 field_declaration = { field_attribute ~ type_literal ~ variable }
-code_line = { (assignment_exp | field_initialization | field_declaration | variable_access | expression) ~ ";" }
+code_line = { (assignment_exp | field_initialization | field_declaration | expression_access | expression) ~ ";" }
 
 //---------------------------------- BLOCKS
 parameter_list = { fn_parameter ~ ("," ~ fn_parameter)* }
@@ -71,14 +72,13 @@ label_exp = { label | unary_exp }
 
 switch_statement = { ^"switch" ~ switch_condition ~ switch_body }
 switch_condition = { "(" ~ expression ~ ")" }
-switch_filename = { command_token | primary_expression }
 switch_body = { "{" ~ switch_clause* ~ "}" }
 switch_clause = { switch_clause_condition ~ ":" ~ (!"break" ~ (statement))* ~ "break;"? }
 switch_clause_condition = { "case" ~ primary_expression }
 
 
 foreach_statement = { foreach_header ~ statement_block }
-foreach_header = { "foreach" ~ foreach_parameter? ~ "(" ~ type_literal? ~ variable ~ "in" ~ expression ~ ")"}
+foreach_header = { "foreach" ~ "(" ~ type_literal? ~ variable ~ "in" ~ expression ~ ")"}
 foreach_parameter = { ^"-parallel" }
 
 while_statement = { while_header ~ statement_block }
@@ -218,7 +218,7 @@ primary_expression = {
 post_inc_expression = { variable ~ "++" }
 post_dec_expression = { variable ~ "--" }
 
-value_access = { variable ~ 
+value_access = { value ~ 
     (
         parenthesis_arg_list
         | method_invocation
@@ -240,6 +240,12 @@ bracket_arg_list = _{ "[" ~ argument_list? ~ "]" }
 member_chain = @{ member_name ~ member_access*}
 variable_access = { variable ~ 
     (
+        member_access
+        | element_access
+    )*
+}
+expression_access = { variable ~ 
+    (
         parenthesis_arg_list
         | method_invocation
         | member_access
@@ -249,61 +255,6 @@ variable_access = { variable ~
 prefix_assign_op = { (additive_op | multiplicative_op) }
 assign_op = { "=" }
 modify_and_assign_op = {prefix_assign_op? ~ assign_op }
-
-// ---------------- COMMAND
-command = ${(
-    invocation_command
-  | cmdlet_command) ~ command_element*
-}
-foreach_command_name = { "%" | ^"foreach-object" | ^"foreach" }
-where_command_name = { "?" | ^"where-object" | ^"where" }
-powershell_command_name = { (^"powershell" | ^"pwsh") ~ ^".exe"? }
-cmdlet_command = ${ (powershell_command_name | where_command_name | foreach_command_name | command_name) }
-invocation_command = !{ current_scope_invocation_command | new_scope_invocation_command }
-current_scope_invocation_command = { "." ~ invocation_command_exp }
-new_scope_invocation_command = { "&" ~ invocation_command_exp }
-BREAK = _{ " " | "\t" }
-command_element = _{ 
-    BREAK 
-    | stop_parsing
-    | command_parameter
-}
-
-command_parameter = @{    
-    "-"+ ~ command_parameter_chars+
-    | "--"
-}
-
-command_parameter_chars = _{ ASCII_ALPHA | ASCII_DIGIT | "_" | "?" | "-" | "`" }
-stop_parsing = @{ "--%" ~ (!(NEWLINE) ~ ANY)* }
-command_argument_sep = { ":" }
-command_argument = {
-      parenthesized_expression
-    | generic_token
-}
-
-invocation_command_exp = _{ cmdlet_command | path_command_name | primary_expression }
-
-command_call = { command_ident ~ expression* }
-command_name = { command_name_base  ~ extra_command_token? }
-command_name_base = @{ (!FORBIDDEN_CHARS ~ ANY)+ }
-FORBIDDEN_CHARS = _{
-      "{" | "}" | "(" | ")" | ";" | "," | "|" | "&" | "$" | "`" | "\"" | "'" | WHITESPACE | NEWLINE
-    | "[" | "]" | "+" | "-" | "*" | "/" | "@" | "<" | "!" | "%" | "="
-}
-
-SECOND_FORBIDDEN_CHARS = _{
-      "{" | "}" | "(" | ")" | ";" | "," | "|" | "&" | "\"" | "'" | WHITESPACE | "\r" | "\n"
-}
-
-
-extra_command_token = {
-      immediate_chars
-    | "\"\""
-    | "''" 
-}
-immediate_chars = @{ (!SECOND_FORBIDDEN_CHARS ~ ANY)+ }
-path_command_name = @{ (ASCII_ALPHANUMERIC | "_" | "?" | "-" | "." | "\\")+ }
 
 //-------------------------------------STRING OPERATORS
 string_op = { replace_op | split_op | cmp_op | contain_op | join_op | type_check_op }
@@ -354,29 +305,10 @@ argument_list      = { arg ~ ("," ~ arg)* }
 arg = _{ named_arg | simple_arg  }
 simple_arg = { "out"? ~ expression }
 named_arg = { var_name ~ ":" ~ expression }
-command_ident = @{ ASCII_ALPHANUMERIC ~ (ASCII_ALPHANUMERIC | "-")* }
 identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 qualified_ident = { identifier ~ ("." ~ identifier)* }
 
 simple_name = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
-
-redirections = { redirection+ }
-redirection = { merging_redirection_operator | (file_redirection_operator ~ redirected_file_name)}
-redirected_file_name = { primary_expression | command_argument }
-file_redirection_operator = { ">" | ">>" | "2>" | "2>>" | "3>" | "3>>" | "4>" | "4>>" | "5>" | "5>>" | "6>" | "6>>" | "*>" | "*>>" | "<" }
-merging_redirection_operator = { "*>&1" | "2>&1" | "3>&1" | "4>&1" | "5>&1" | "6>&1" | "*>&2" | "1>&2" | "3>&2" | "4>&2" | "5>&2" | "6>&2" }
-
-verbatim_command_arg= { "--%" ~ verbatim_command_argument_chars }
-verbatim_command_argument_chars = { verbatim_piece+ }
-
-verbatim_piece = _{
-      quoted_string
-    | ampersand_chunk
-    | generic_verbatim_chunk
-}
-quoted_string = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
-ampersand_chunk = @{ "&" ~ (!"&" ~ ANY)* }
-generic_verbatim_chunk = @{ (!("|" | "\r" | "\n") ~ ANY)+ }
 
 //----------------------LITERAL
 literal = _{
@@ -488,5 +420,3 @@ generic_token_start = _{
 generic_token_rest = _{
     !(WHITESPACE | "(" | ")" | "}" | "|" | ";" | ",") ~ ANY
 }
-command_token = @{ command_char+ }
-command_char = _{ !( "(" | ")" | "{" | "}" | ";" | NEWLINE ) ~ ANY }

@@ -57,8 +57,8 @@ fn creplace(input: Val, pattern: Val, replacement: Val) -> String {
 //         let mut p = CSharpSession::new();
 //         assert_eq!(
 //             p.safe_eval_statements(r#""Hello World" -replace "World",
-// "PowerShell""#)                 .unwrap(),
-//             "Hello PowerShell".to_string()
+// "CSharp""#)                 .unwrap(),
+//             "Hello CSharp".to_string()
 //         );
 //         assert_eq!(
 //             p.safe_eval_statements(r#" "abc123" -replace "\d+", "456"

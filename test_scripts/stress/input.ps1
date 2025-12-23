@@ -1,5 +1,5 @@
 # ========================================
-# PowerShell Parser Stress Test
+# CSharp Parser Stress Test
 # Testing edge cases, error conditions, and complex scenarios
 # ========================================
 

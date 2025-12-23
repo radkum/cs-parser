@@ -65,10 +65,12 @@ impl RuntimeObjectTrait for Val {
     fn method(&self, method_name: MethodName) -> RuntimeResult<MethodCallType> {
         let name = method_name.name();
         log::trace!("Val: {self:?} method called with name: {}", name);
-        match name {
-            "gettype" => return Ok(Box::new(Self::get_type)),
-            _ => {}
+
+        //universal gettype method for all Vals
+        if name == "GetType" {
+            return Ok(Box::new(Self::get_type));
         }
+
         match self {
             Val::String(str) => str.method(method_name),
             Val::RuntimeObject(runtime_object) => runtime_object.method(method_name),
@@ -95,9 +97,8 @@ impl RuntimeObjectTrait for Val {
             Val::RuntimeObject(ps) => return ps.readonly_member(name),
             _ => {}
         }
-
         // then check the length property
-        if name.eq_ignore_ascii_case("length") {
+        if name == "Length" {
             return Ok(Val::Int(match self {
                 Val::Null => 0,
                 Val::String(PsString(s)) => s.len() as i64,
@@ -129,7 +130,7 @@ impl RuntimeObjectTrait for Val {
 
 #[cfg(test)]
 mod tests {
-    use crate::{CSharpSession, PsValue, Variables};
+    use crate::{CSharpSession, PsValue};
 
     #[test]
     fn get_type() {

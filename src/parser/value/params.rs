@@ -21,10 +21,6 @@ impl Param {
         &self.name
     }
 
-    pub fn command_param(&self) -> String {
-        format!("-{}", self.name)
-    }
-
     pub fn ttype(&self) -> ValType {
         self.ttype.clone()
     }

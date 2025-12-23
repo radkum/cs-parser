@@ -1,17 +1,14 @@
 mod function;
-mod scopes;
 mod variable;
 
 use std::collections::HashMap;
 
 pub(super) use function::FunctionMap;
 use phf::phf_map;
-pub(super) use scopes::SessionScope;
 use thiserror_no_std::Error;
 pub(super) use variable::{Scope, VarName};
 
-use super::value::RUNTIME_TYPE_MAP;
-use crate::parser::{Val, value::ScriptBlock};
+use crate::parser::{ClassType, RuntimeTypeTrait, Val, value::ScriptBlock};
 #[derive(Error, Debug, PartialEq, Clone)]
 pub enum VariableError {
     #[error("Variable \"{0}\" is not defined")]
@@ -29,8 +26,8 @@ pub struct Variables {
     variables_stack: Vec<VariableMap>,
     global_functions: FunctionMap,
     state: Stack,
-    force_var_eval: bool,
     values_persist: bool,
+    this: Option<ClassType>,
     //special variables
     // status: bool, // $?
     // first_token: Option<String>,
@@ -47,6 +44,10 @@ impl Variables {
         "false" => Val::Bool(false),
         "null" => Val::Null,
     };
+
+    pub(crate) fn set_this(&mut self, val: ClassType) {
+        self.this = Some(val);
+    }
 
     pub fn load_from_file(
         &mut self,
@@ -120,8 +121,8 @@ impl Variables {
     ///
     /// # Arguments
     ///
-    /// * initializes the container with PowerShell built-in variables like
-    ///   `$true`, `$false`, `$null`, and `$?`. If `false`,
+    /// * initializes the container with CSharp built-in variables like `$true`,
+    ///   `$false`, `$null`, and `$?`. If `false`,
     ///
     /// # Returns
     ///
@@ -130,7 +131,7 @@ impl Variables {
     /// # Examples
     ///
     /// ```rust
-    /// use ps_parser::Variables;
+    /// use cs_parser::Variables;
     ///
     /// // Create with built-in variables
     /// let vars_with_builtins = Variables::new();
@@ -140,47 +141,6 @@ impl Variables {
     /// ```
     pub fn new() -> Variables {
         Default::default()
-    }
-
-    /// Creates a new Variables container with forced evaluation enabled.
-    ///
-    /// This constructor creates a Variables instance that will return
-    /// `Val::Null` for undefined variables instead of returning `None`.
-    /// This is useful for PowerShell script evaluation where undefined
-    /// variables should be treated as `$null` rather than causing errors.
-    ///
-    /// # Returns
-    ///
-    /// A new `Variables` instance with forced evaluation enabled and built-in
-    /// variables initialized.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use ps_parser::{Variables, CSharpSession};
-    ///
-    /// // Create with forced evaluation
-    /// let vars = Variables::force_eval();
-    /// let mut session = CSharpSession::new().with_variables(vars);
-    ///
-    /// // Undefined variables will evaluate to $null instead of causing errors
-    /// let result = session.safe_eval("$undefined_variable").unwrap();
-    /// assert_eq!(result, "");  // $null displays as empty string
-    /// ```
-    ///
-    /// # Behavior Difference
-    ///
-    /// - `Variables::new()`: Returns `None` for undefined variables
-    /// - `Variables::force_eval()`: Returns `Val::Null` for undefined variables
-    ///
-    /// This is particularly useful when parsing PowerShell scripts that may
-    /// reference variables that haven't been explicitly defined, allowing
-    /// the script to continue execution rather than failing.
-    pub fn force_eval() -> Self {
-        Self {
-            force_var_eval: true,
-            ..Default::default()
-        }
     }
 
     // not exported in this version
@@ -193,7 +153,7 @@ impl Variables {
     /// Loads variables from an INI configuration file.
     ///
     /// This method parses an INI file and loads its key-value pairs as
-    /// PowerShell variables. Variables are organized by INI sections, with
+    /// CSharp variables. Variables are organized by INI sections, with
     /// the `[global]` section creating global variables and other sections
     /// creating scoped variables.
     ///
@@ -209,7 +169,7 @@ impl Variables {
     /// # Examples
     ///
     /// ```rust
-    /// use ps_parser::{Variables, CSharpSession};
+    /// use cs_parser::{Variables, CSharpSession};
     /// use std::path::Path;
     ///
     /// // Load from INI file
@@ -323,6 +283,7 @@ impl Variables {
                 }
             }
 
+            // Finally, check global scope
             if self.global_scope.contains_key(name_str) {
                 return Ok(self.global_scope.get_mut(name_str));
             }
@@ -341,17 +302,16 @@ impl Variables {
     ///
     /// * `VariableResult<Val>` - The variable's value, or an error if not
     ///   found.
-    pub(crate) fn get(&self, var_name: &VarName) -> Option<Val> {
+    pub(crate) fn get(
+        &self,
+        var_name: &VarName,
+        types_map: &HashMap<String, Box<dyn RuntimeTypeTrait>>,
+    ) -> Option<Val> {
         let var = self.find_variable_in_scopes(var_name);
 
         if var.is_none() {
-            let Ok(a) = RUNTIME_TYPE_MAP.try_lock() else {
-                return None;
-            };
-            let Some(rt) = a.get(var_name.name.as_str()) else {
-                return None;
-            };
-            return Some(Val::RuntimeType(rt.clone_rt()));
+            let rt = types_map.get(var_name.name.as_str())?;
+            Some(Val::RuntimeType(rt.clone_rt()))
         } else {
             var.cloned()
         }
@@ -386,6 +346,11 @@ impl Variables {
                 if local_scope.contains_key(name_str) {
                     return local_scope.get(name_str);
                 }
+            }
+
+            // check class scope
+            if let Some(class) = &self.this {
+                return class.property(name_str);
             }
 
             if self.global_scope.contains_key(name_str) {

@@ -196,7 +196,6 @@ impl ArithmeticPred {
 //             CSharpSession::new().safe_eval_statements(r#" 8%" 16 "
 // "#).unwrap(),             "8".to_string()
 //         );
-//         //assert_eq!(PowerShellParser::new().safe_eval(r#" " 8 "% 0.3
 //         // "#).unwrap(), "0.2".to_string());
 //         assert_eq!(
 //             CSharpSession::new().safe_eval_statements(r#" " 8 "% 0.3

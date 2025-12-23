@@ -1,18 +1,12 @@
 use std::collections::HashMap;
 
 use super::Variables;
-use crate::parser::{
-    ScriptBlock,
-    command::{CallablePredType, CommandOutput},
-    value::Val,
-};
+use crate::parser::{CSharpSession, ParserResult, ScriptBlock, value::Val};
 
+pub(crate) type CallablePredType<I, O> = Box<dyn Fn(Vec<I>, &mut CSharpSession) -> ParserResult<O>>;
 pub(crate) type FunctionMap = HashMap<String, ScriptBlock>;
 impl Variables {
-    pub(crate) fn get_function(
-        &mut self,
-        name: &str,
-    ) -> Option<CallablePredType<Val, CommandOutput>> {
+    pub(crate) fn get_function(&mut self, name: &str) -> Option<CallablePredType<Val, Val>> {
         if let Some(fun) = self.global_functions.get(name).cloned() {
             Self::get_function_from_script_block(fun)
         } else {
@@ -22,10 +16,10 @@ impl Variables {
 
     pub(super) fn get_function_from_script_block(
         sb: ScriptBlock,
-    ) -> Option<CallablePredType<Val, CommandOutput>> {
+    ) -> Option<CallablePredType<Val, Val>> {
         let fun = move |params, ps: &mut crate::CSharpSession| {
             let sb = sb.clone();
-            sb.run(params, ps, None)
+            sb.run(params, ps)
         };
         Some(Box::new(fun))
     }

@@ -13,6 +13,9 @@ pub enum ValError {
     #[error("Failed to convert value {0} to type {1}")]
     InvalidCast(String, String),
 
+    #[error("Cast from {0} to type {1} is not implemented yet")]
+    CastNotImplemeneted(String, String),
+
     #[error("Unknown type \"{0}\"")]
     UnknownType(String),
 

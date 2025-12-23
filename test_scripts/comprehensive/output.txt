@@ -63,12 +63,12 @@ Complex logical: True
 === Test 21: Pipeline Operations ===
 Even numbers: 2 4 6 8 10
 === Test 22: Special Variables ===
-PowerShell Version: $PSVersionTable.PSVersion
+CSharp Version: $PSVersionTable.PSVersion
 Execution Policy: $(Get-ExecutionPolicy)
 Current Location: C:\VSExclude\ps-parser
 === Test 23: Nested Structures ===
 First user: Alice
-First user skills: PowerShell, Python
+First user skills: CSharp, Python
 First user skills: , 
 Theme setting: Dark
 === Test 24: Comments ===

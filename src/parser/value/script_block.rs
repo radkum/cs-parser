@@ -1,14 +1,13 @@
 use super::{
-    RuntimeObjectTrait, Val, ValType,
+    MethodCallType, RuntimeObjectTrait, Val, ValType,
     params::{Param, Params},
+    runtime_object::StaticFnCallType,
 };
 use crate::{
     CSharpSession,
-    parser::{
-        CommandElem, CommandOutput, ParserError, ParserResult, Results, VarName,
-        value::{MethodCallType, runtime_object::StaticFnCallType},
-    },
+    parser::{ParserError, ParserResult, VarName},
 };
+
 #[derive(Debug, Clone, Default)]
 pub(crate) struct ScriptBlock {
     pub params: Params,
@@ -28,7 +27,7 @@ impl RuntimeObjectTrait for ScriptBlock {
 }
 
 impl ScriptBlock {
-    pub fn new(script: String, raw_text: String) -> Self {
+    pub fn new(script: String) -> Self {
         Self {
             params: Params::new(Vec::new()),
             body: script.clone(),
@@ -36,36 +35,6 @@ impl ScriptBlock {
             deobfuscated: Vec::new(),
         }
     }
-    pub fn empty() -> Self {
-        Self {
-            params: Params::new(Vec::new()),
-            body: String::new(),
-            raw_text: String::new(),
-            deobfuscated: Vec::new(),
-        }
-    }
-
-    pub fn from_command_elements(command_elements: &[CommandElem]) -> Self {
-        let elements = command_elements
-            .iter()
-            .map(|arg| arg.display())
-            .collect::<Vec<_>>()
-            .join(" ");
-
-        Self {
-            params: Params::new(Vec::new()),
-            body: format!("$_.{}", elements),
-            raw_text: String::new(),
-            deobfuscated: Vec::new(),
-        }
-    }
-    // pub fn to_function(&self, name: &str, scope: &Option<Scope>) -> String {
-    //     if let Some(scope) = scope {
-    //         format!("function {scope}:{name}(){}", self.deobfuscated_string())
-    //     } else {
-    //         format!("function {name}(){}", self.deobfuscated_string())
-    //     }
-    // }
 }
 
 impl std::fmt::Display for ScriptBlock {
@@ -75,16 +44,6 @@ impl std::fmt::Display for ScriptBlock {
 }
 
 impl ScriptBlock {
-    pub fn deobfuscated_string(&self) -> String {
-        let params = self
-            .params
-            .0
-            .iter()
-            .map(|p| p.to_string())
-            .collect::<Vec<String>>()
-            .join(", ");
-        format!("{{\n {}; {} \n}}", params, self.deobfuscated.join("\n"))
-    }
     pub fn with_params(self, params: Vec<Param>) -> ScriptBlock {
         ScriptBlock {
             params: Params::new(params),
@@ -94,14 +53,9 @@ impl ScriptBlock {
         }
     }
 
-    pub fn run_mut(
-        &mut self,
-        args: Vec<Val>,
-        ps: &mut CSharpSession,
-        ps_item: Option<Val>,
-    ) -> ParserResult<CommandOutput> {
+    pub fn run_mut(&mut self, args: Vec<Val>, ps: &mut CSharpSession) -> ParserResult<Val> {
         if self.body.is_empty() {
-            return Ok(CommandOutput::new(Val::Null, vec![]));
+            return Ok(Val::Null);
         }
 
         for (i, param) in self.params.0.iter().enumerate() {
@@ -116,17 +70,12 @@ impl ScriptBlock {
 
         let (script_last_output, _) = ps.eval_statement_block_string(self.body.as_str());
         //output.into_iter().for_each(|f| ps.add_output_statement(f));
-        Ok(CommandOutput::new(script_last_output, Vec::new()))
+        Ok(script_last_output)
     }
 
-    pub fn run(
-        &self,
-        args: Vec<Val>,
-        ps: &mut CSharpSession,
-        ps_item: Option<Val>,
-    ) -> ParserResult<CommandOutput> {
+    pub fn run(&self, args: Vec<Val>, ps: &mut CSharpSession) -> ParserResult<Val> {
         let mut self_clone = self.clone();
-        self_clone.run_mut(args, ps, ps_item)
+        self_clone.run_mut(args, ps)
     }
 
     pub(crate) fn get_static_method(&self) -> Option<StaticFnCallType> {
@@ -147,7 +96,7 @@ impl ScriptBlock {
         session.push_scope_session();
         let script_last_output = self.run_static_method_impl(args, session);
         session.pop_scope_session();
-        Ok(script_last_output?)
+        script_last_output
     }
 
     fn run_static_method_impl(
@@ -191,7 +140,7 @@ impl ScriptBlock {
         session.push_scope_session();
         let script_last_output = self.run_method_impl(this, args, session);
         session.pop_scope_session();
-        Ok(script_last_output?)
+        script_last_output
     }
 
     fn run_method_impl(
@@ -218,7 +167,7 @@ impl ScriptBlock {
         let (script_last_output, _) = session.eval_statement_block_string(self.body.as_str());
         if let Some(val) = session
             .variables
-            .get(&VarName::new(None, "this".to_string()))
+            .get(&VarName::new(None, "this".to_string()), &session.types_map)
         {
             *this = val.clone();
         }

@@ -66,7 +66,10 @@ pub static RUNTIME_TYPE_MAP: LazyLock<Mutex<HashMap<String, Box<dyn RuntimeTypeT
         )]))
     });
 impl ValType {
-    pub(crate) fn cast(s: &str) -> ValResult<Self> {
+    pub(crate) fn cast(
+        s: &str,
+        types_map: &HashMap<String, Box<dyn RuntimeTypeTrait>>,
+    ) -> ValResult<Self> {
         let mut s = s.to_string();
         if "object" == s || "object[]" == s {
             s = "array".into();
@@ -74,7 +77,7 @@ impl ValType {
 
         s.retain(|c| !c.is_whitespace());
         if let Some(prefix) = s.strip_suffix("[]") {
-            return Ok(Self::Array(Some(Box::new(Self::cast(prefix)?))));
+            return Ok(Self::Array(Some(Box::new(Self::cast(prefix, types_map)?))));
         }
 
         let t = match s.as_str() {
@@ -87,9 +90,7 @@ impl ValType {
             "object" => Self::Array(None),
             "switch" => Self::Switch,
             _ => {
-                if let Ok(map) = RUNTIME_TYPE_MAP.try_lock()
-                    && map.contains_key(s.as_str())
-                {
+                if types_map.contains_key(s.as_str()) {
                     return Ok(Self::RuntimeObject(s));
                 }
                 return Err(ValError::UnknownType(s));
@@ -98,11 +99,14 @@ impl ValType {
         Ok(t)
     }
 
+    #[cfg(test)]
     pub(crate) fn runtime_type_from_str(s: &str) -> ValResult<Val> {
-        let val_type = Self::cast(s)?;
+        let types_map = HashMap::new();
+        let val_type = Self::cast(s, &types_map)?;
         val_type.runtime()
     }
 
+    #[cfg(test)]
     pub(crate) fn runtime(&self) -> ValResult<Val> {
         Ok(Val::RuntimeType(match self {
             ValType::RuntimeObject(name) => {

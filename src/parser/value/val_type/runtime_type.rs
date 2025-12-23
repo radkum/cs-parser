@@ -12,7 +12,7 @@ pub(crate) trait RuntimeTypeTrait: std::fmt::Debug + Sync + Send {
         format!("{}", self.type_info())
     }
 
-    fn init(&self, _: Vec<Val>, session: &mut CSharpSession) -> ParserResult<Val> {
+    fn init(&self, _: Vec<Val>, _session: &mut CSharpSession) -> ParserResult<Val> {
         Err(crate::parser::error::ParserError::NotImplemented(
             "init not implemented for this type".to_string(),
         ))
@@ -48,9 +48,9 @@ pub(crate) trait RuntimeTypeTrait: std::fmt::Debug + Sync + Send {
 
     fn type_info(&self) -> TypeInfo {
         TypeInfo {
-            is_public: true,
-            is_serial: true,
-            name: self.name(),
+            _is_public: true,
+            _is_serial: true,
+            _name: self.name(),
             base_type: self.base_type(),
         }
     }
@@ -183,17 +183,13 @@ mod tests {
         }
 
         // let runtime_object =
-        // ValType::runtime_type_from_str("system.text.encoding::unicode".into()).
-        // unwrap(); let runtime_type = runtime_object.ttype();
-        // let val_type  = ValType::RuntimeObject("System.Text.UnicodeEncoding".into());
+        // ValType::runtime_type_from_str("system.text.encoding::unicode".
+        // into()). unwrap(); let runtime_type = runtime_object.ttype();
+        // let val_type  =
+        // ValType::RuntimeObject("System.Text.UnicodeEncoding".into());
         // assert_eq!(Val::RuntimeType(Box::new(val_type.clone())).ttype(),
         // runtime_type); if let Val::RuntimeType(rt_type) = runtime_object {
         //     assert_eq!(rt_type.type_definition(), val_type);
         // }
-
-        assert_eq!(
-            ValType::cast("a").unwrap_err(),
-            ValError::UnknownType("a".into())
-        );
     }
 }

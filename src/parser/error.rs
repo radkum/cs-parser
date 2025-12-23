@@ -3,7 +3,7 @@ use std::num::ParseFloatError;
 use thiserror_no_std::Error;
 
 use super::{
-    CommandError, PestError,
+    PestError,
     predicates::{BitwiseError, OpError},
     value::{MethodError, RuntimeError, ValError},
     variables::VariableError,
@@ -25,9 +25,6 @@ pub enum ParserError {
 
     #[error("MethodError: {0}")]
     MethodError(MethodError),
-
-    #[error("CommandError: {0}")]
-    CommandError(CommandError),
 
     #[error("BitwiseError: {0}")]
     BitwiseError(BitwiseError),
@@ -72,12 +69,6 @@ impl From<OpError> for ParserError {
 impl From<MethodError> for ParserError {
     fn from(value: MethodError) -> Self {
         Self::MethodError(value)
-    }
-}
-
-impl From<CommandError> for ParserError {
-    fn from(value: CommandError) -> Self {
-        Self::CommandError(value)
     }
 }
 

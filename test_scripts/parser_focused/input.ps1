@@ -1,5 +1,5 @@
 # ========================================
-# Focused PowerShell Test Script for PS Parser
+# Focused CSharp Test Script for PS Parser
 # Testing only supported features based on parser capabilities
 # ========================================
 
@@ -123,7 +123,7 @@ $double_result = Get-Double 5
 $sum_result = Get-Sum 3 7
 
 # Test 16: String Matching
-$text = "PowerShell"
+$text = "CSharp"
 $like_test = $text -like "*Shell"
 $match_test = $text -match "Power"
 
@@ -137,7 +137,7 @@ $join_test = $list -join ", "
 $split_test = "a,b,c,d" -split ","
 
 # Test 19: Replace Operations
-$replace_test = "Hello World" -replace "World", "PowerShell"
+$replace_test = "Hello World" -replace "World", "CSharp"
 
 # Test 20: Bitwise Operations
 $band = 5 -band 3

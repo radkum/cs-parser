@@ -96,7 +96,7 @@ function Test-Parameters {
     return $result
 }
 "Name: Bob, Age: 30 (Verbose mode)"
-$text = "PowerShell is awesome"
+$text = "CSharp is awesome"
 "Contains 'Shell': True"
 "Starts with 'Power': True"
 "Matches regex: True"
@@ -121,7 +121,7 @@ $complexcondition = $true
 $numbers = @(1,2,3,4,5,6,7,8,9,10)
 $evennumbers = @(2,4,6,8,10)
 "Even numbers: 2 4 6 8 10"
-"PowerShell Version: $PSVersionTable.PSVersion"
+"CSharp Version: $PSVersionTable.PSVersion"
 "Execution Policy: $(Get-ExecutionPolicy)"
 "Current Location: C:\VSExclude\ps-parser"
 $nesteddata = @{
@@ -132,7 +132,7 @@ $nesteddata = @{
 	users = @(@{
 	age = 30
 	name = "Alice"
-	skills = @("PowerShell","Python")
+	skills = @("CSharp","Python")
 },@{
 	age = 25
 	name = "Bob"
@@ -140,7 +140,7 @@ $nesteddata = @{
 })
 }
 "First user: Alice"
-"First user skills: PowerShell, Python"
+"First user skills: CSharp, Python"
 "First user skills: , "
 "Theme setting: Dark"
 "Single line comment test"

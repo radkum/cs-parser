@@ -1,5 +1,5 @@
 # ========================================
-# Comprehensive PowerShell Test Script for PS Parser
+# Comprehensive CSharp Test Script for PS Parser
 # ========================================
 
 # Test 1: Basic Variables and Assignment
@@ -158,7 +158,7 @@ Write-Output "$(Test-Parameters -Name "Bob" -Age 30 -Verbose)"
 
 # Test 17: String Matching and Regex
 Write-Host "=== Test 17: String Matching ===" -ForegroundColor Green
-$text = "PowerShell is awesome"
+$text = "CSharp is awesome"
 Write-Output "Contains 'Shell': $($text -like "*Shell*")"
 Write-Output "Starts with 'Power': $($text -like "Power*")"
 Write-Output "Matches regex: $($text -match "P\w+Shell")"
@@ -199,7 +199,7 @@ Write-Output "Even numbers: $evenNumbers"
 
 # Test 22: Special Variables
 Write-Host "=== Test 22: Special Variables ===" -ForegroundColor Green
-Write-Output "PowerShell Version: $($PSVersionTable.PSVersion)"
+Write-Output "CSharp Version: $($PSVersionTable.PSVersion)"
 Write-Output "Execution Policy: $(Get-ExecutionPolicy)"
 Write-Output "Current Location: $(Get-Location)"
 
@@ -207,7 +207,7 @@ Write-Output "Current Location: $(Get-Location)"
 Write-Host "=== Test 23: Nested Structures ===" -ForegroundColor Green
 $nestedData = @{
     Users = @(
-        @{ Name = "Alice"; Age = 30; Skills = @("PowerShell", "Python") }
+        @{ Name = "Alice"; Age = 30; Skills = @("CSharp", "Python") }
         @{ Name = "Bob"; Age = 25; Skills = @("Java", "C#") }
     )
     Settings = @{

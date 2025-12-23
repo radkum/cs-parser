@@ -2,7 +2,7 @@ use std::{collections::BTreeSet, fmt::Display};
 
 use super::program_result::PsValue;
 
-/// Represents a parsed PowerShell method call token.
+/// Represents a parsed CSharp method call token.
 ///
 /// Stores the original token string, the method name, and its arguments as
 /// `PsValue`s. Useful for analyzing and reconstructing method calls in scripts.
@@ -48,7 +48,7 @@ pub struct FunctionToken {
     arguments: Vec<String>,
 }
 
-/// Represents a parsed PowerShell command token.
+/// Represents a parsed CSharp command token.
 ///
 /// Stores the original token string, the command name, and its arguments as
 /// strings. Useful for identifying and reconstructing command invocations.
@@ -81,7 +81,7 @@ pub struct FunctionDeclarationToken {
     params: Vec<String>,
 }
 
-/// Represents a parsed PowerShell command token.
+/// Represents a parsed CSharp command token.
 ///
 /// Stores the original token string, the command name, and its arguments as
 /// strings. Useful for identifying and reconstructing command invocations.
@@ -107,7 +107,7 @@ impl FunctionDeclarationToken {
     }
 }
 
-/// Represents a parsed PowerShell expression token.
+/// Represents a parsed CSharp expression token.
 ///
 /// Stores the original token string and its evaluated value as `PsValue`.
 /// Useful for deobfuscation and analysis of expressions.
@@ -123,7 +123,7 @@ impl ExpressionToken {
     }
 }
 
-/// Represents a double-quoted PowerShell string with variable expansion.
+/// Represents a double-quoted CSharp string with variable expansion.
 ///
 /// Stores the original token string and its expanded value.
 /// Useful for tracking and reconstructing expandable strings in scripts.
@@ -147,7 +147,7 @@ impl StringExpandableToken {
     }
 }
 
-/// Represents a parsed PowerShell expression token.
+/// Represents a parsed CSharp expression token.
 ///
 /// Stores the original token string and its evaluated value as `PsValue`.
 /// Useful for deobfuscation and analysis of expressions.

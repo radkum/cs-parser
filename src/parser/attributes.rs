@@ -8,6 +8,16 @@ impl Attribute {
     pub fn new(name: String, args: Vec<AttributeArg>) -> Self {
         Self { name, args }
     }
+
+    #[allow(dead_code)]
+    pub fn name(&self) -> &String {
+        &self.name
+    }
+
+    #[allow(dead_code)]
+    pub fn args(&self) -> &Vec<AttributeArg> {
+        &self.args
+    }
 }
 
 pub(super) struct AttributeArg {

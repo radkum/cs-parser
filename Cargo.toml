@@ -1,6 +1,6 @@
 [package]
 name = "cs-parser"
-version = "0.0.1"
+version = "0.1.0-pre"
 description = "The CSharp Parser"
 homepage = "https://github.com/radkum/cs-parser"
 repository = "https://github.com/radkum/cs-parser"

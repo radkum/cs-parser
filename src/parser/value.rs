@@ -25,9 +25,10 @@ use runtime_object::{MethodCallType, StaticFnCallType};
 pub(crate) use script_block::ScriptBlock;
 use smart_default::SmartDefault;
 pub(crate) use val_error::ValError;
-pub(super) use val_type::{RUNTIME_TYPE_MAP, RuntimeTypeTrait, ValType};
+pub(super) use val_type::{RuntimeTypeTrait, ValType};
 pub type ValResult<T> = core::result::Result<T, ValError>;
 use runtime_object::RuntimeResult;
+pub(crate) use string_builder::StringBuilderType;
 
 use super::NEWLINE;
 #[derive(Debug, SmartDefault)]
@@ -497,7 +498,7 @@ impl Val {
             ValType::HashTable => Val::HashTable(self.cast_to_hashtable()?),
             ValType::ScriptBlock => Val::ScriptBlock(self.cast_to_scriptblock()?),
             ValType::ScriptText => Val::ScriptText(self.cast_to_script()),
-            ValType::RuntimeObject(_) => Err(ValError::InvalidCast(
+            ValType::RuntimeObject(_) => Err(ValError::CastNotImplemeneted(
                 self.ttype().to_string(),
                 "RuntimeObject".to_string(),
             ))?,
@@ -715,18 +716,19 @@ impl Val {
             && **ttype == ValType::String
         {
             return Ok(self
-                .to_string()
-                .split_ascii_whitespace()
-                .map(|s| Val::String(s.into()))
+                .cast_to_string()
+                .chars()
+                .map(|s| Val::Char(s as u32))
                 .collect());
         }
         let mut arr = match self {
             Val::Null => vec![],
-            Val::Bool(_) | Val::Int(_) | Val::Float(_) | Val::Char(_) | Val::String(_) => {
+            Val::Bool(_) | Val::Int(_) | Val::Float(_) | Val::Char(_) => {
                 vec![self.clone()]
             }
             Val::Array(v) => v.clone(),
             Val::HashTable(_) => vec![self.clone()],
+            Val::String(PsString(s)) => s.chars().map(|c| Val::Char(c as u32)).collect(),
             Val::RuntimeObject(a) => vec![Val::String(a.name().into())],
             Val::ScriptBlock(sb) => vec![Val::String(sb.to_string().into())],
             Val::ScriptText(s) => vec![Val::String(s.clone().into())],

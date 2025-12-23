@@ -49,6 +49,14 @@ fn strip_case_insensitive_prefix<'a>(s: &'a str, prefix: &str) -> Option<&'a str
     }
 }
 impl ClassType {
+    pub fn add_property(
+        &mut self,
+        name: String,
+        val_type: Option<ValType>,
+        default_value: Option<Val>,
+    ) {
+        self.properties.0.insert(name, (val_type, default_value));
+    }
     pub fn new(
         name: String,
         properties: Option<ClassProperties>,
@@ -140,6 +148,16 @@ impl ClassType {
         Box::new(move |args: Vec<Val>, session: &mut CSharpSession| {
             new_instance(class.clone(), args, constructor_body.clone(), session)
         })
+    }
+
+    pub(crate) fn property(&self, name: &str) -> Option<&Val> {
+        if let Some(prop) = self.properties.0.get(name)
+            && let Some(val) = &prop.1
+        {
+            return Some(val);
+        }
+
+        None
     }
 }
 fn new_instance(
