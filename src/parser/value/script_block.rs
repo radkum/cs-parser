@@ -165,9 +165,10 @@ impl ScriptBlock {
         }
 
         let (script_last_output, _) = session.eval_statement_block_string(self.body.as_str());
-        if let Some(val) = session
-            .variables
-            .get(&VarName::new(None, "this".to_string()), &session.types_map)
+        if let Some(val) =
+            session
+                .variables
+                .get(&VarName::new("this".to_string()), &session.types_map, None)
         {
             *this = val.clone();
         }

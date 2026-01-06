@@ -8,7 +8,7 @@ pub(crate) struct LogicalPred;
 
 impl LogicalPred {
     const LOGICAL_PRED_MAP: LazyLock<HashMap<&'static str, LogicalPredType>> =
-        LazyLock::new(|| HashMap::from([("-and", and as _), ("-or", or as _), ("-xor", xor as _)]));
+        LazyLock::new(|| HashMap::from([("&&", and as _), ("||", or as _)]));
 
     pub(crate) fn get(name: &str) -> Option<LogicalPredType> {
         Self::LOGICAL_PRED_MAP.get(name).copied()

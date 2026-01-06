@@ -22,7 +22,7 @@ pub type VariableMap = HashMap<String, Val>;
 
 #[derive(Clone, Default)]
 pub struct Variables {
-    global_scope: VariableMap,
+    static_scope: VariableMap,
     variables_stack: Vec<VariableMap>,
     global_functions: FunctionMap,
     state: Stack,
@@ -81,7 +81,7 @@ impl Variables {
                 };
 
                 let var_name = match section_name.as_str() {
-                    "global" => VarName::new_with_scope(Scope::Global, key.to_lowercase()),
+                    "static" => VarName::new(key),
                     _ => {
                         continue;
                     }
@@ -110,7 +110,7 @@ impl Variables {
     }
 
     pub(crate) fn get_global(&self) -> VariableMap {
-        self.global_scope.clone()
+        self.static_scope.clone()
     }
 
     pub(crate) fn add_global_function(&mut self, name: String, func: ScriptBlock) {
@@ -207,14 +207,14 @@ impl Variables {
         Ok(variables)
     }
 
-    fn const_map_from_scope(&self, scope: &Scope) -> &VariableMap {
-        match scope {
-            Scope::Global => &self.global_scope,
-            Scope::Local => match self.state {
-                Stack(depth) => &self.variables_stack[depth as usize],
-            },
-        }
-    }
+    // fn const_map_from_scope(&self, scope: &Scope) -> &VariableMap {
+    //     match scope {
+    //         Scope::Static => &self.static_scope,
+    //         Scope::Local => match self.state {
+    //             Stack(depth) => &self.variables_stack[depth as usize],
+    //         },
+    //     }
+    // }
 
     pub(crate) fn current_scope(&mut self) -> &mut VariableMap {
         let depth = self.state.0;
@@ -225,12 +225,16 @@ impl Variables {
         self.current_scope().clone()
     }
 
-    fn map_from_scope(&mut self, scope: &Scope) -> &mut VariableMap {
-        match scope {
-            Scope::Global => &mut self.global_scope,
-            Scope::Local => self.current_scope(),
-        }
+    pub(crate) fn get_static_scope(&mut self) -> VariableMap {
+        self.static_scope.clone()
     }
+
+    // fn map_from_scope(&mut self, scope: &Scope) -> &mut VariableMap {
+    //     match scope {
+    //         Scope::Static => &mut self.static_scope,
+    //         Scope::Local => self.current_scope(),
+    //     }
+    // }
 
     /// Sets the value of a variable in the specified scope.
     ///
@@ -249,15 +253,27 @@ impl Variables {
         if let Some(variable) = var {
             *variable = val;
         } else {
-            let map = self.map_from_scope(&var_name.scope.clone().unwrap_or(Scope::Local));
+            let map = self.current_scope();
             map.insert(var_name.name.clone(), val);
         }
 
         Ok(())
     }
 
+    pub(crate) fn update(&mut self, var_name: &VarName, val: Val) -> VariableResult<()> {
+        let var = self.find_mut_variable_in_scopes(var_name)?;
+
+        if let Some(variable) = var {
+            *variable = val;
+        } else {
+            log::warn!("Variable {:?} not defined, cannot update", var_name);
+        }
+
+        Ok(())
+    }
+
     pub(crate) fn set_local(&mut self, name: &str, val: Val) -> VariableResult<()> {
-        let var_name = VarName::new_with_scope(Scope::Local, name.to_string());
+        let var_name = VarName::new(name.to_string());
         self.set(&var_name, val)
     }
 
@@ -268,28 +284,31 @@ impl Variables {
         let name = var_name.name.to_string();
         let name_str = name.as_str();
 
-        if let Some(scope) = &var_name.scope {
-            let map = self.map_from_scope(scope);
-            Ok(map.get_mut(name_str))
-        } else {
-            if Self::PREDEFINED_VARIABLES.contains_key(name_str) {
-                return Err(VariableError::ReadOnly(name.clone()));
-            }
-
-            // No scope specified, check local scopes first, then globals
-            for local_scope in self.variables_stack.iter_mut().rev() {
-                if local_scope.contains_key(name_str) {
-                    return Ok(local_scope.get_mut(name_str));
-                }
-            }
-
-            // Finally, check global scope
-            if self.global_scope.contains_key(name_str) {
-                return Ok(self.global_scope.get_mut(name_str));
-            }
-
-            Ok(None)
+        // if let Some(scope) = &var_name.scope {
+        //     let map = self.map_from_scope(scope);
+        //     Ok(map.get_mut(name_str))
+        // } else {
+        if Self::PREDEFINED_VARIABLES.contains_key(name_str) {
+            return Err(VariableError::ReadOnly(name.clone()));
         }
+
+        // No scope specified, check local scopes first, then globals
+        for local_scope in self.variables_stack.iter_mut().rev() {
+            if local_scope.contains_key(name_str) {
+                return Ok(local_scope.get_mut(name_str));
+            }
+        }
+
+        // Finally, check static scope
+        if self
+            .static_scope
+            .contains_key(var_name.to_string().as_str())
+        {
+            return Ok(self.static_scope.get_mut(var_name.to_string().as_str()));
+        }
+
+        Ok(None)
+        //}
     }
 
     /// Retrieves the value of a variable from the appropriate scope.
@@ -306,6 +325,7 @@ impl Variables {
         &self,
         var_name: &VarName,
         types_map: &HashMap<String, Box<dyn RuntimeTypeTrait>>,
+        hierarchy: Option<&Vec<String>>,
     ) -> Option<Val> {
         let var = self.find_variable_in_scopes(var_name);
 
@@ -333,32 +353,35 @@ impl Variables {
         let name = var_name.name.to_string();
         let name_str = name.as_str();
 
-        if let Some(scope) = &var_name.scope {
-            let map = self.const_map_from_scope(scope);
-            map.get(name_str)
-        } else {
-            if Self::PREDEFINED_VARIABLES.contains_key(name_str) {
-                return Self::PREDEFINED_VARIABLES.get(name_str);
-            }
-
-            // No scope specified, check local scopes first, then globals
-            for local_scope in self.variables_stack.iter().rev() {
-                if local_scope.contains_key(name_str) {
-                    return local_scope.get(name_str);
-                }
-            }
-
-            // check class scope
-            if let Some(class) = &self.this {
-                return class.property(name_str);
-            }
-
-            if self.global_scope.contains_key(name_str) {
-                return self.global_scope.get(name_str);
-            }
-
-            None
+        // if let Some(scope) = &var_name.scope {
+        //     let map = self.const_map_from_scope(scope);
+        //     map.get(name_str)
+        // } else {
+        if Self::PREDEFINED_VARIABLES.contains_key(name_str) {
+            return Self::PREDEFINED_VARIABLES.get(name_str);
         }
+
+        // No scope specified, check local scopes first, then globals
+        for local_scope in self.variables_stack.iter().rev() {
+            if local_scope.contains_key(name_str) {
+                return local_scope.get(name_str);
+            }
+        }
+
+        // check class scope
+        if let Some(class) = &self.this {
+            return class.property(name_str);
+        }
+
+        if self
+            .static_scope
+            .contains_key(var_name.to_string().as_str())
+        {
+            return self.static_scope.get(var_name.to_string().as_str());
+        }
+
+        None
+        //}
     }
 
     pub(crate) fn push_scope_session(&mut self) {
@@ -420,7 +443,7 @@ mod tests {
                 r#" int var_int = 5; string var_string = "assdfa"; "#,
             )
             .unwrap();
-        let script_variables = program_res.script_variables();
+        let script_variables = program_res.static_variables();
         assert_eq!(script_variables.get("var_int"), Some(&PsValue::Int(5)));
         assert_eq!(
             script_variables.get("var_string"),

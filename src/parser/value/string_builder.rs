@@ -25,7 +25,6 @@ impl RuntimeTypeTrait for StringBuilderType {
                     let x = Ok(Val::RuntimeObject(Box::new(StringBuilder {
                         buffer_string: Val::String(PsString(s.clone())),
                     })));
-                    //println!("StringBuilder initialized with string: {:?}", x);
                     return x;
                 }
                 Val::Int(size) => {

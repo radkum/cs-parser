@@ -111,7 +111,7 @@ pub struct ProgramResult {
     evaluated_statements: Vec<String>,
     tokens: Tokens,
     errors: Vec<ParserError>,
-    script_values: HashMap<String, PsValue>,
+    static_values: HashMap<String, PsValue>,
 }
 
 impl ProgramResult {
@@ -121,7 +121,7 @@ impl ProgramResult {
         evaluated_statements: Vec<String>,
         tokens: Tokens,
         errors: Vec<ParserError>,
-        script_values: HashMap<String, PsValue>,
+        static_values: HashMap<String, PsValue>,
     ) -> Self {
         Self {
             result: result.into(),
@@ -132,7 +132,7 @@ impl ProgramResult {
             evaluated_statements,
             tokens,
             errors,
-            script_values,
+            static_values,
         }
     }
 
@@ -164,7 +164,7 @@ impl ProgramResult {
         self.stream.clone()
     }
 
-    pub fn script_variables(&self) -> HashMap<String, PsValue> {
-        self.script_values.clone()
+    pub fn static_variables(&self) -> HashMap<String, PsValue> {
+        self.static_values.clone()
     }
 }

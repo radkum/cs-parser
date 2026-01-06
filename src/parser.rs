@@ -16,6 +16,8 @@ use value::{
     ClassProperties, ClassType, FunctionHeader, MethodName, Param, RuntimeObjectTrait,
     RuntimeTypeTrait, ScriptBlock, ValResult,
 };
+
+use crate::parser::token::FunctionDeclarationToken;
 type ParserResult<T> = core::result::Result<T, ParserError>;
 use error::ParserError;
 type PestError = pest::error::Error<Rule>;
@@ -97,6 +99,7 @@ pub struct CSharpSession {
     results: Vec<Results>,
     skip_error: u32,
     types_map: HashMap<String, Box<dyn RuntimeTypeTrait>>,
+    current_hierarchy: Vec<String>,
 }
 
 impl Default for CSharpSession {
@@ -142,6 +145,7 @@ impl<'a> CSharpSession {
             results: Vec::new(),
             skip_error: 0,
             types_map,
+            current_hierarchy: Default::default(),
         }
     }
 
@@ -276,7 +280,7 @@ impl<'a> CSharpSession {
             std::mem::take(&mut self.tokens),
             std::mem::take(&mut self.errors),
             self.variables
-                .get_current_scope()
+                .get_static_scope()
                 .into_iter()
                 .map(|(k, v)| (k, v.into()))
                 .collect(),
@@ -327,7 +331,7 @@ impl<'a> CSharpSession {
             std::mem::take(&mut self.tokens),
             std::mem::take(&mut self.errors),
             self.variables
-                .get_current_scope()
+                .get_static_scope()
                 .into_iter()
                 .map(|(k, v)| (k, v.into()))
                 .collect(),
@@ -421,13 +425,23 @@ impl<'a> CSharpSession {
         Ok(())
     }
 
-    fn parse_function_declaration_statement(&mut self, token: Pair<'a>) -> ParserResult<()> {
+    fn parse_function_declaration_statement(
+        &mut self,
+        token: Pair<'a>,
+    ) -> ParserResult<FunctionHeader> {
         check_rule!(token, Rule::function_declaration);
+        let raw_token = token.as_str();
+
         let mut pair = token.into_inner();
         let function_header_token = pair.next().unwrap();
-        let _fn_header = self.parse_function_header(function_header_token)?;
-
-        Ok(())
+        let fn_header = self.parse_function_header(function_header_token)?;
+        self.tokens
+            .push(Token::FunctionDeclaration(FunctionDeclarationToken::new(
+                raw_token.to_string(),
+                fn_header.name().to_string(),
+                vec![],
+            )));
+        Ok(fn_header)
     }
 
     fn parse_function_header(&mut self, token: Pair<'a>) -> ParserResult<FunctionHeader> {
@@ -447,7 +461,8 @@ impl<'a> CSharpSession {
 
         let params = if let Some(parameters_token) = pair.next() {
             check_rule!(parameters_token, Rule::parameter_list);
-            self.parse_parameter_list(parameters_token)?
+            self.parse_parameter_list(parameters_token)
+                .unwrap_or_default()
         } else {
             Vec::new()
         };
@@ -696,16 +711,24 @@ impl<'a> CSharpSession {
         Ok(())
     }
 
-    fn parse_field_attribute(&mut self, token: Pair<'a>) -> ParserResult<()> {
+    fn parse_field_attribute(&mut self, token: Pair<'a>) -> ParserResult<bool> {
         check_rule!(token, Rule::field_attribute);
         let mut pairs = token.into_inner();
-        if let Some(token) = pairs.next()
-            && let Rule::attribute_list = token.as_rule()
-        {
-            let _attributes = self.parse_attribute_list(token)?;
+
+        let mut is_static = false;
+        while let Some(token) = pairs.next() {
+            match token.as_rule() {
+                Rule::attribute_list => {
+                    let _attributes = self.parse_attribute_list(token)?;
+                }
+                Rule::static_attribute => {
+                    is_static = true;
+                }
+                _ => {}
+            }
         }
 
-        Ok(())
+        Ok(is_static)
     }
 
     fn parse_field_declaration(
@@ -716,7 +739,7 @@ impl<'a> CSharpSession {
         let mut pair = token.into_inner();
 
         let field_attribute_token = pair.next().unwrap();
-        self.parse_field_attribute(field_attribute_token)?;
+        let is_static = self.parse_field_attribute(field_attribute_token)?;
 
         let var_type_token = pair.next().unwrap();
         let ttype = match self.eval_type_literal(var_type_token) {
@@ -729,7 +752,11 @@ impl<'a> CSharpSession {
 
         let variable_token = pair.next().unwrap();
         check_rule!(variable_token, Rule::variable);
-        let var_name = Self::parse_variable(variable_token)?;
+        let var_name = if is_static {
+            self.parse_static_variable(variable_token)?
+        } else {
+            Self::parse_variable(variable_token)?
+        };
 
         Ok((var_name, ttype))
     }
@@ -742,7 +769,7 @@ impl<'a> CSharpSession {
 
         let field_attribute_token = pair.next().unwrap();
         check_rule!(field_attribute_token, Rule::field_attribute);
-        self.parse_field_attribute(field_attribute_token)?;
+        let is_static = self.parse_field_attribute(field_attribute_token)?;
 
         let var_type_token = pair.next().unwrap();
         check_rule!(var_type_token, Rule::type_literal);
@@ -756,7 +783,11 @@ impl<'a> CSharpSession {
 
         let variable_token = pair.next().unwrap();
         check_rule!(variable_token, Rule::variable);
-        let var_name = Self::parse_variable(variable_token)?;
+        let var_name = if is_static {
+            self.parse_static_variable(variable_token)?
+        } else {
+            Self::parse_variable(variable_token)?
+        };
 
         let expression_token = pair.next().unwrap();
         check_rule!(expression_token, Rule::expression);
@@ -797,6 +828,8 @@ impl<'a> CSharpSession {
         check_rule!(class_name_token, Rule::simple_name);
         let class_name = class_name_token.as_str().to_string();
 
+        self.current_hierarchy.push(class_name.clone());
+
         let mut token = pair.next().unwrap();
         if let Rule::inheritance = token.as_rule() {
             //skip
@@ -818,51 +851,60 @@ impl<'a> CSharpSession {
         for member_token in class_body_functions_token {
             match member_token.as_rule() {
                 Rule::function_statement => {
-                    let (fn_header, script_block) = self.parse_function_statement(member_token)?;
+                    if let Ok((fn_header, script_block)) =
+                        self.parse_function_statement(member_token)
+                    {
+                        let method_name = MethodName::new(fn_header.name(), fn_header.params());
 
-                    let method_name = MethodName::new(fn_header.name(), fn_header.params());
-
-                    if fn_header.is_static() {
-                        static_methods.insert(method_name.full_name().to_string(), script_block);
-                    } else {
-                        methods.insert(method_name.full_name().to_string(), script_block);
+                        if fn_header.is_static() {
+                            static_methods
+                                .insert(method_name.full_name().to_string(), script_block);
+                        } else {
+                            methods.insert(method_name.full_name().to_string(), script_block);
+                        }
                     }
+                }
+                Rule::class_statement => {
+                    let _ = self.parse_class_statement(member_token);
                 }
                 _ => continue,
             }
         }
-        let mut class_type = ClassType::new(class_name.clone(), None, static_methods, methods);
+        let class_type = ClassType::new(class_name.clone(), None, static_methods, methods);
         self.types_map
             .insert(class_name.clone(), Box::new(class_type.clone()));
 
         for member_token in class_body_pairs {
-            match member_token.as_rule() {
-                Rule::field_declaration => {
-                    let (var_name, ttype) = self.parse_field_declaration(member_token)?;
-                    class_type.add_property(var_name.name, ttype, None);
-                }
-                Rule::field_initialization => {
-                    let (var_name, ttype, default_val) =
-                        self.eval_field_initialization(member_token)?;
-                    class_type.add_property(
-                        var_name.name.clone(),
-                        ttype.clone(),
-                        Some(default_val),
-                    );
-                    self.set_this(class_type.clone());
-                }
-                Rule::function_statement => continue,
-                Rule::statement_terminator => continue,
-                _ => unexpected_token!(member_token),
+            if let Err(err) = self.parse_class_member(member_token) {
+                //log::warn!("Error parsing class member: {}", err);
+                self.errors.push(err);
             }
         }
 
-        let class_type = class_type.with_properties(properties.clone());
-        self.types_map
-            .insert(class_name.clone(), Box::new(class_type.clone()));
         Ok(())
     }
 
+    fn parse_class_member(&mut self, member_token: Pair<'a>) -> ParserResult<()> {
+        match member_token.as_rule() {
+            Rule::field_declaration => {
+                if let Ok((var_name, ttype)) = self.parse_field_declaration(member_token) {
+                    let _ = self.set_variable(&var_name, ttype, Val::Null)?;
+                    //class_type.add_property(var_name.name, ttype, None);
+                }
+            }
+            Rule::field_initialization => {
+                if let Ok((var_name, ttype, val)) = self.eval_field_initialization(member_token) {
+                    let _ = self.set_variable(&var_name, ttype, val)?;
+                    // class_type.add_property(
+                }
+            }
+            Rule::function_declaration => {
+                let _ = self.parse_function_declaration_statement(member_token)?;
+            }
+            _ => {}
+        }
+        Ok(())
+    }
     fn eval_statement(&mut self, token: Pair<'a>) -> (ParserResult<Val>, Option<FlowControl>) {
         if let Rule::code_line = token.as_rule() {
             (self.eval_code_line(token), None)
@@ -874,7 +916,9 @@ impl<'a> CSharpSession {
                 Rule::if_statement => self.eval_if_statement(token),
                 Rule::labeled_statement => self.parse_labeled_statement(token),
                 Rule::function_statement => self.eval_function_statement(token),
-                Rule::function_declaration => self.parse_function_declaration_statement(token),
+                Rule::function_declaration => {
+                    self.parse_function_declaration_statement(token).map(|_| ())
+                }
                 Rule::class_statement => self.parse_class_statement(token),
                 Rule::enum_statement => self.parse_enum_statement(token),
                 Rule::try_statement => self.parse_try_statement(token),
@@ -894,12 +938,12 @@ impl<'a> CSharpSession {
         match inner_token.as_rule() {
             Rule::assignment_exp => self.eval_assignment_exp(inner_token),
             Rule::field_initialization => {
-                let (var_name, _, value) = self.eval_field_initialization(inner_token)?;
-                self.set_variable(&var_name, value)
+                let (var_name, ttype, value) = self.eval_field_initialization(inner_token)?;
+                self.set_variable(&var_name, ttype, value)
             }
             Rule::field_declaration => {
-                let (var_name, _ttype) = self.parse_field_declaration(inner_token)?;
-                self.set_variable(&var_name, Val::Null)
+                let (var_name, ttype) = self.parse_field_declaration(inner_token)?;
+                self.set_variable(&var_name, ttype, Val::Null)
             }
             Rule::expression_access => self.eval_expression_access(inner_token),
             Rule::expression => self.eval_expression(inner_token),
@@ -956,7 +1000,7 @@ impl<'a> CSharpSession {
 
         let (var_name, collection) = self.parse_foreach_header(header_token)?;
         for item in collection {
-            self.set_variable(&var_name, item)?;
+            self.set_variable(&var_name, None, item)?;
 
             let (_, flow_control) = self.eval_statement_block(statements_token.clone());
             if let Some(fc) = flow_control {
@@ -1056,9 +1100,13 @@ impl<'a> CSharpSession {
     }
 
     fn eval_statement_block(&mut self, token: Pair<'a>) -> (Val, Option<FlowControl>) {
-        check_rule!(token, Rule::statement_block);
+        let statements = match token.as_rule() {
+            Rule::statement_block => token.into_inner().next().unwrap(),
+            Rule::statements => token,
+            _ => unexpected_token!(token),
+        };
+
         let mut last_statement = Val::Null;
-        let statements = token.into_inner().next().unwrap();
         check_rule!(statements, Rule::statements);
 
         for token in statements.into_inner() {
@@ -1124,7 +1172,10 @@ impl<'a> CSharpSession {
     fn get_variable(&mut self, token: Pair<'a>) -> ParserResult<Val> {
         check_rule!(token, Rule::variable);
         let var_name = Self::parse_variable(token)?;
-        let Some(var) = self.variables.get(&var_name, &self.types_map) else {
+        let Some(var) =
+            self.variables
+                .get(&var_name, &self.types_map, Some(&self.current_hierarchy))
+        else {
             return Err(ParserError::VariableError(VariableError::NotDefined(
                 var_name.name,
             )));
@@ -1248,7 +1299,17 @@ impl<'a> CSharpSession {
         check_rule!(token, Rule::variable);
         let mut pair = token.into_inner();
         let token = pair.next().unwrap();
-        Ok(VarName::new(None, token.as_str().to_string()))
+        Ok(VarName::new(token.as_str().to_string()))
+    }
+
+    fn parse_static_variable(&self, token: Pair<'a>) -> ParserResult<VarName> {
+        check_rule!(token, Rule::variable);
+        let mut pair = token.into_inner();
+        let token = pair.next().unwrap();
+        Ok(VarName::new_static(
+            token.as_str().to_string(),
+            &self.current_hierarchy,
+        ))
     }
 
     fn eval_expression_with_unary_operator(&mut self, token: Pair<'a>) -> ParserResult<Val> {
@@ -1262,11 +1323,11 @@ impl<'a> CSharpSession {
                 let var_name = Self::parse_variable(variable_token)?;
                 let mut var = self
                     .variables
-                    .get(&var_name, &self.types_map)
+                    .get(&var_name, &self.types_map, Some(&self.current_hierarchy))
                     .unwrap_or_default();
                 var.inc()?;
 
-                self.variables.set(&var_name, var.clone())?;
+                self.variables.update(&var_name, var.clone())?;
                 var
             }
             Rule::pre_dec_expression => {
@@ -1274,11 +1335,11 @@ impl<'a> CSharpSession {
                 let var_name = Self::parse_variable(variable_token)?;
                 let mut var = self
                     .variables
-                    .get(&var_name, &self.types_map)
+                    .get(&var_name, &self.types_map, Some(&self.current_hierarchy))
                     .unwrap_or_default();
                 var.dec()?;
 
-                self.variables.set(&var_name, var.clone())?;
+                self.variables.update(&var_name, var.clone())?;
                 var
             }
             Rule::cast_expression => self.eval_cast_expression(token)?,
@@ -1606,12 +1667,12 @@ impl<'a> CSharpSession {
                 let var_name = Self::parse_variable(variable_token)?;
                 let mut var = self
                     .variables
-                    .get(&var_name, &self.types_map)
+                    .get(&var_name, &self.types_map, Some(&self.current_hierarchy))
                     .unwrap_or_default();
                 let var_to_return = var.clone();
 
                 var.inc()?;
-                self.variables.set(&var_name, var.clone())?;
+                self.variables.update(&var_name, var.clone())?;
 
                 //if var_to_return.ttype() ==
                 var_to_return
@@ -1621,12 +1682,12 @@ impl<'a> CSharpSession {
                 let var_name = Self::parse_variable(variable_token)?;
                 let mut var = self
                     .variables
-                    .get(&var_name, &self.types_map)
+                    .get(&var_name, &self.types_map, Some(&self.current_hierarchy))
                     .unwrap_or_default();
                 let var_to_return = var.clone();
 
                 var.dec()?;
-                self.variables.set(&var_name, var.clone())?;
+                self.variables.update(&var_name, var.clone())?;
 
                 var_to_return
             }
@@ -1641,9 +1702,10 @@ impl<'a> CSharpSession {
         let mut dimensions = Vec::new();
         for dim_token in token.into_inner() {
             check_rule!(dim_token, Rule::dimension);
-            let size_token = dim_token.into_inner().next().unwrap();
-            let size = self.eval_decimal_integer(size_token)?.cast_to_int()? as usize;
-            dimensions.push(size);
+            if let Some(size_token) = dim_token.into_inner().next() {
+                let size = self.eval_decimal_integer(size_token)?.cast_to_int()? as usize;
+                dimensions.push(size);
+            }
         }
         Ok(dimensions)
     }
@@ -1675,7 +1737,7 @@ impl<'a> CSharpSession {
                     };
 
                     let dimensions = if let Some(next_token) = opt_token {
-                        check_rule!(token, Rule::dimensions);
+                        check_rule!(next_token, Rule::dimensions);
                         self.eval_dimensions(next_token)?
                     } else {
                         Vec::new()
@@ -2348,10 +2410,23 @@ impl<'a> CSharpSession {
         Ok(accessed_elem.clone())
     }
 
-    fn set_variable(&mut self, var_name: &VarName, value: Val) -> ParserResult<Val> {
+    fn set_variable(
+        &mut self,
+        var_name: &VarName,
+        ttype: Option<ValType>,
+        value: Val,
+    ) -> ParserResult<Val> {
         self.variables.set(var_name, value.clone())?;
         //we want save each assignment statement
-        self.add_deobfuscated_statement(format!("{} = {}", var_name, value.cast_to_script()));
+        let ttype = ttype
+            .map(|t| t.to_string())
+            .unwrap_or_else(|| "var".to_string());
+        self.add_deobfuscated_statement(format!(
+            "{} {} = {}",
+            ttype,
+            var_name,
+            value.cast_to_script()
+        ));
 
         Ok(Val::NonDisplayed(Box::new(value)))
     }

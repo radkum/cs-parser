@@ -28,11 +28,12 @@ impl BitwisePred {
     const BITWISE_PRED_MAP: LazyLock<HashMap<&'static str, BitwisePredType>> =
         LazyLock::new(|| {
             HashMap::from([
-                ("-band", band as _),
-                ("-bor", bor as _),
-                ("-bxor", bxor as _),
-                ("-shl", shl as _),
-                ("-shr", shr as _),
+                ("&", band as _),
+                ("|", bor as _),
+                ("^", bxor as _),
+                ("<<", shl as _),
+                (">>", shr as _),
+                (">>>", shr as _),
             ])
         });
 
