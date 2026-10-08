@@ -30,7 +30,7 @@ pub type ValResult<T> = core::result::Result<T, ValError>;
 use runtime_object::RuntimeResult;
 pub(crate) use string_builder::StringBuilderType;
 
-use super::NEWLINE;
+use super::{NEWLINE, limits};
 #[derive(Debug, SmartDefault)]
 pub(crate) enum Val {
     #[default]
@@ -187,9 +187,8 @@ impl Val {
                 let s2 = val.cast_to_string();
                 str_cmp(s1, &s2, case_insensitive) == std::cmp::Ordering::Greater
             }
-            Val::Array(_) => todo!(),
+            Val::Array(_) | Val::RuntimeObject(_) => Err(Self::not_defined(self, &val, ">"))?,
             Val::HashTable(_) => false, // HashTables can't be compared with >
-            Val::RuntimeObject(_) => todo!(),
             Val::RuntimeType(_) => false, // Add logic if needed
             Val::ScriptBlock(_) => false, // ScriptBlocks can't be compared
             Val::ScriptText(_) => false,
@@ -208,9 +207,8 @@ impl Val {
                 let s2 = val.cast_to_string();
                 str_cmp(s1, &s2, case_insensitive) == std::cmp::Ordering::Less
             }
-            Val::Array(_) => todo!(),
+            Val::Array(_) | Val::RuntimeObject(_) => Err(Self::not_defined(self, &val, "<"))?,
             Val::HashTable(_) => false, // HashTables can't be compared with <
-            Val::RuntimeObject(_) => todo!(),
             Val::RuntimeType(_) => false, // Add logic if needed
             Val::ScriptBlock(_) => false, // ScriptBlocks can't be compared
             Val::ScriptText(_) => false,
@@ -243,18 +241,21 @@ impl Val {
                 *self = if val.ttype() == ValType::Float {
                     Val::Float(self.cast_to_float()? + val.cast_to_float()?)
                 } else {
-                    Val::Int(self.cast_to_int()? + val.cast_to_int()?)
+                    Val::Int(self.cast_to_int()?.wrapping_add(val.cast_to_int()?))
                 };
             }
             Val::Char(_) | Val::String(_) => {
-                *self = Val::String(PsString(
-                    self.cast_to_string() + val.cast_to_string().as_str(),
-                ))
+                let (left, right) = (self.cast_to_string(), val.cast_to_string());
+                limits::alloc_string(left.len() + right.len())?;
+                *self = Val::String(PsString(left + right.as_str()))
             }
             Val::Array(arr) => {
                 if let Val::Array(val_arr) = val {
+                    limits::alloc_array(arr.len() + val_arr.len())?;
                     arr.extend(val_arr);
                 } else {
+                    limits::check_value_depth(&val)?;
+                    limits::alloc_array(arr.len() + 1)?;
                     arr.push(val);
                 }
             }
@@ -284,7 +285,7 @@ impl Val {
     fn inc_or_dec_operation(&mut self, amount: i64, op: String) -> ValResult<()> {
         match self {
             Val::Null => *self = Val::Int(amount),
-            Val::Int(i) => *self = Val::Int(*i + amount),
+            Val::Int(i) => *self = Val::Int(i.wrapping_add(amount)),
             Val::Float(f) => *self = Val::Float(*f + amount as f64),
             Val::NonDisplayed(box_val) => box_val.inc_or_dec_operation(amount, op)?,
             _ => {
@@ -339,7 +340,7 @@ impl Val {
         if self.ttype() == ValType::Float || val.ttype() == ValType::Float {
             *self = Val::Float(self.cast_to_float()? - val.cast_to_float()?);
         } else {
-            *self = Val::Int(self.cast_to_int()? - val.cast_to_int()?);
+            *self = Val::Int(self.cast_to_int()?.wrapping_sub(val.cast_to_int()?));
         }
 
         Ok(())
@@ -353,7 +354,9 @@ impl Val {
                 if self.ttype() == ValType::Float || val.ttype() == ValType::Float {
                     Ok(Val::Float(self.cast_to_float()? * val.cast_to_float()?))
                 } else {
-                    Ok(Val::Int(self.cast_to_int()? * val.cast_to_int()?))
+                    Ok(Val::Int(
+                        self.cast_to_int()?.wrapping_mul(val.cast_to_int()?),
+                    ))
                 }
             }
             Val::Char(_) => Err(ValError::OperationNotDefined(
@@ -366,6 +369,7 @@ impl Val {
                 if repeat_count < 0 {
                     Err(ValError::ArgumentOutOfRange("*".to_string(), repeat_count))?
                 }
+                limits::alloc_string(s.len().saturating_mul(repeat_count as usize))?;
                 Ok(Val::String(PsString(s.repeat(repeat_count as usize))))
             }
             Val::Array(v) => {
@@ -373,6 +377,9 @@ impl Val {
                 if repeat_count < 0 {
                     Err(ValError::ArgumentOutOfRange("*".to_string(), repeat_count))?
                 }
+                limits::alloc_array(v.len().saturating_mul(repeat_count as usize))?;
+                let size = v.iter().map(Val::approx_size).sum::<usize>();
+                limits::charge(size.saturating_mul(repeat_count as usize))?;
                 Ok(Val::Array(Self::repeat(v, repeat_count as usize)))
             }
             _ => Err(ValError::OperationNotDefined(
@@ -406,9 +413,12 @@ impl Val {
             Val::Bool(_) | Val::Int(_) | Val::Char(_) | Val::String(_) => {
                 //if second operand isn't float and can be divided without rest, we can cast it
                 // to Int
-                if val.ttype() != ValType::Float && (self.cast_to_int()? % val.cast_to_int()? == 0)
+                if val.ttype() != ValType::Float && val.cast_to_int()? == 0 {
+                    Err(ValError::DividingByZero)?
+                } else if val.ttype() != ValType::Float
+                    && self.cast_to_int()?.wrapping_rem(val.cast_to_int()?) == 0
                 {
-                    Val::Int(self.cast_to_int()? / val.cast_to_int()?)
+                    Val::Int(self.cast_to_int()?.wrapping_div(val.cast_to_int()?))
                 } else {
                     Val::Float(self.cast_to_float()? / val.cast_to_float()?)
                 }
@@ -444,8 +454,10 @@ impl Val {
             Val::Bool(_) | Val::Int(_) | Val::Char(_) | Val::String(_) => {
                 //if second operand isn't float and can be divided without rest, we can cast it
                 // to Int
-                if val.ttype() != ValType::Float {
-                    Val::Int(self.cast_to_int()? % val.cast_to_int()?)
+                if val.ttype() != ValType::Float && val.cast_to_int()? == 0 {
+                    Err(ValError::DividingByZero)?
+                } else if val.ttype() != ValType::Float {
+                    Val::Int(self.cast_to_int()?.wrapping_rem(val.cast_to_int()?))
                 } else {
                     Val::Float(self.cast_to_float()? % val.cast_to_float()?)
                 }
@@ -464,7 +476,7 @@ impl Val {
         match self {
             Val::Float(f) => *f = f.neg(),
             Val::Null | Val::Bool(_) | Val::Int(_) | Val::Char(_) | Val::String(_) => {
-                *self = Val::Int(self.cast_to_int()?.neg())
+                *self = Val::Int(self.cast_to_int()?.wrapping_neg())
             }
             Val::NonDisplayed(box_val) => box_val.neg()?,
             _ => Err(ValError::OperationNotDefined(
@@ -751,6 +763,9 @@ impl Val {
     }
 
     fn repeat(v: &[Val], amount: usize) -> Vec<Val> {
+        if v.is_empty() {
+            return Vec::new();
+        }
         let mut res = v.to_owned();
         for _ in 1..amount {
             res.append(&mut v.to_owned());
@@ -805,7 +820,7 @@ impl Val {
     }
 
     pub fn get_index_ref(&mut self, index: Val) -> ValResult<&mut Val> {
-        let self_string = self.to_string();
+        let self_string = |v: &Val| v.to_string();
         match self {
             Val::Null => Err(ValError::IndexedNullArray)?,
             Val::Array(v) => {
@@ -813,7 +828,8 @@ impl Val {
                 if v.len() > i {
                     Ok(&mut v[i])
                 } else {
-                    Err(RuntimeError::IndexOutOfBounds(self_string, i).into())
+                    let self_string = v.iter().map(Val::to_string).collect::<Vec<_>>();
+                    Err(RuntimeError::IndexOutOfBounds(self_string.join(NEWLINE), i).into())
                 }
             }
             Val::HashTable(v) => v
@@ -824,7 +840,7 @@ impl Val {
                     if i == 0 {
                         Ok(self)
                     } else {
-                        Err(RuntimeError::IndexOutOfBounds(self_string, i as usize).into())
+                        Err(RuntimeError::IndexOutOfBounds(self_string(self), i as usize).into())
                     }
                 } else {
                     let member_name = index.cast_to_string();
@@ -835,7 +851,7 @@ impl Val {
     }
 
     pub fn get_index(&self, index: Val) -> ValResult<Val> {
-        let self_string = self.to_string();
+        let self_string = || self.to_string();
         match self {
             Val::Null => Err(ValError::IndexedNullArray)?,
             Val::Array(v) => {
@@ -843,14 +859,14 @@ impl Val {
                 if v.len() > i {
                     Ok(v[i].clone())
                 } else {
-                    Err(RuntimeError::IndexOutOfBounds(self_string, i).into())
+                    Err(RuntimeError::IndexOutOfBounds(self_string(), i).into())
                 }
             }
             Val::String(PsString(s)) => {
                 let i = index.cast_to_int()? as usize;
 
                 let Some(c) = s.chars().nth(i) else {
-                    return Err(RuntimeError::IndexOutOfBounds(self_string, i).into());
+                    return Err(RuntimeError::IndexOutOfBounds(self_string(), i).into());
                 };
                 Ok(Val::Char(c as u32))
             }
@@ -863,7 +879,7 @@ impl Val {
                     if i == 0 {
                         Ok(self.clone())
                     } else {
-                        Err(RuntimeError::IndexOutOfBounds(self_string, i as usize).into())
+                        Err(RuntimeError::IndexOutOfBounds(self_string(), i as usize).into())
                     }
                 } else {
                     let member_name = index.cast_to_string();
@@ -871,6 +887,26 @@ impl Val {
                 }
             }
         }
+    }
+
+    pub(crate) fn depth(&self) -> usize {
+        match self {
+            Val::Array(v) => 1 + v.iter().map(Val::depth).max().unwrap_or(0),
+            Val::HashTable(h) => 1 + h.values().map(Val::depth).max().unwrap_or(0),
+            Val::NonDisplayed(v) => v.depth(),
+            _ => 0,
+        }
+    }
+
+    pub(crate) fn approx_size(&self) -> usize {
+        size_of::<Val>()
+            + match self {
+                Val::String(PsString(s)) | Val::ScriptText(s) => s.len(),
+                Val::Array(v) => v.iter().map(Val::approx_size).sum(),
+                Val::HashTable(h) => h.iter().map(|(k, v)| k.len() + v.approx_size()).sum(),
+                Val::NonDisplayed(v) => v.approx_size(),
+                _ => 0,
+            }
     }
 
     pub fn flatten(&self) -> Vec<Self> {

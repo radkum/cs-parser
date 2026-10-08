@@ -40,6 +40,9 @@ pub enum ParserError {
 
     #[error("Skip")]
     Skip,
+
+    #[error("InternalError: {0}")]
+    Internal(String),
 }
 
 impl From<PestError> for ParserError {

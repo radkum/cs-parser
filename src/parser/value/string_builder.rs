@@ -28,7 +28,7 @@ impl RuntimeTypeTrait for StringBuilderType {
                     return x;
                 }
                 Val::Int(size) => {
-                    let capacity = *size as usize;
+                    let capacity = (*size).clamp(0, 1 << 16) as usize;
                     let buffer = String::with_capacity(capacity * 2);
                     return Ok(Val::RuntimeObject(Box::new(StringBuilder {
                         buffer_string: Val::String(PsString(buffer)),

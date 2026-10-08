@@ -10,7 +10,7 @@ use super::{MethodCallType, MethodError, MethodResult, RuntimeObjectTrait, Val, 
 use crate::{
     CSharpSession,
     parser::{
-        MethodName,
+        MethodName, limits,
         value::{RuntimeError, runtime_object::RuntimeResult},
     },
 };
@@ -103,6 +103,16 @@ impl PsString {
 
         let old = args[0].cast_to_string();
         let new = args[1].cast_to_string();
+        let matches = if old.is_empty() {
+            input.chars().count() + 1
+        } else {
+            input.matches(&old).count()
+        };
+        limits::alloc_string(
+            input
+                .len()
+                .saturating_add(matches.saturating_mul(new.len())),
+        )?;
         let res = input.replace(&old, &new);
         Ok(Val::String(PsString(res)))
     }
@@ -118,6 +128,9 @@ impl PsString {
         let Val::Int(idx) = args[0] else {
             return Err(MethodError::new_incorrect_args("Insert", args));
         };
+        let Some(idx) = char_to_byte_index(&input, idx) else {
+            return Err(MethodError::new_incorrect_args("Insert", args));
+        };
 
         let value = if args[1].ttype() == ValType::String || args[1].ttype() == ValType::Char {
             args[1].cast_to_string()
@@ -125,12 +138,12 @@ impl PsString {
             Err(MethodError::new_incorrect_args("Insert", args))?
         };
 
-        input.insert_str(idx as usize, value.as_str());
+        input.insert_str(idx, value.as_str());
         Ok(Val::String(PsString(input)))
     }
 
     fn split(&self, args: Vec<Val>) -> MethodResult<Val> {
-        let PsString(mut input) = self.clone();
+        let PsString(input) = self.clone();
 
         let args_len = args.len();
         if args_len != 1 && args_len != 2 {
@@ -149,20 +162,13 @@ impl PsString {
         let parts = if args_len == 2
             && let Val::Int(idx) = args[1]
         {
-            let mut parts = vec![];
             if idx == 0 {
                 return Ok(Val::Array(vec![]));
             }
-            for _ in 0..idx - 1 {
-                if let Some((before, after)) = input.split_once(value.as_str()) {
-                    parts.push(before.to_string());
-                    input = after.to_string();
-                } else {
-                    break;
-                }
-            }
-            parts.push(input);
-            parts
+            input
+                .splitn(idx.max(1) as usize, value.as_str())
+                .map(String::from)
+                .collect::<Vec<String>>()
         } else {
             input
                 .split(value.as_str())
@@ -175,6 +181,15 @@ impl PsString {
             .collect();
         Ok(Val::Array(parts))
     }
+}
+
+/// Byte offset of the `idx`-th char, or `None` when out of range.
+pub(super) fn char_to_byte_index(s: &str, idx: i64) -> Option<usize> {
+    let idx = usize::try_from(idx).ok()?;
+    s.char_indices()
+        .map(|(i, _)| i)
+        .chain(std::iter::once(s.len()))
+        .nth(idx)
 }
 
 // very strange. En-us culture has different ordering than default. A (ascii 65)

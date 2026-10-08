@@ -6,7 +6,11 @@ WHITESPACE     = _{ " " | "\t" | line_continuation | NEWLINE }
 BREAK = _{ " " | "\t" }
 
 program = { SOI ~ program_content ~ EOI }
-program_content = { (namespace_statement | class_statement | using_statement | enum_statement | function_declaration)* }
+program_content = { nesting_guard ~ (namespace_statement | class_statement | using_statement | enum_statement | function_declaration)* ~ DROP }
+
+// Each guarded rule pushes one entry on the pest stack, so deeply nested input
+// fails to parse instead of overflowing the native stack.
+nesting_guard = _{ !PEEK[256..] ~ PUSH("") }
 namespace_statement = { "namespace" ~ var_name ~ (";" | statement_body) }
 statement_body = _{ "{" ~ program_content ~ "}" ~ ";"? }
 using_statement = { "using" ~  member_chain ~ ";"* }
@@ -39,7 +43,7 @@ statement_block = { "{" ~ statements ~ "}" }
 statements = { statement* }
 
 //------------------------------------- STATEMENTS
-statement = _{ 
+statement = _{ nesting_guard ~ (
 	if_statement 
     | labeled_statement
     | flow_control_statement
@@ -50,7 +54,7 @@ statement = _{
     | try_statement
     | code_line
     | statement_terminator
-}
+) ~ DROP }
 statement_terminator = { ";"+ }
 
 if_statement = {
@@ -142,9 +146,9 @@ class_statement = {
    ("class" | "struct") ~ simple_name ~ inheritance? ~ (statement_terminator | class_body)
 }
 class_body = { 
-    "{"
+    "{" ~ nesting_guard
    ~ (function_statement | function_declaration | class_statement | enum_statement | ((field_initialization | field_declaration ) ~ ";"))*
-   ~ "}" ~ ";"? 
+   ~ DROP ~ "}" ~ ";"? 
    }
 
 access_modifier = { "new"? ~ ("public" | "private" | "protected" | "internal") }
@@ -154,7 +158,7 @@ enum_body = { "{" ~ enum_assign_exp ~ ("," ~ enum_assign_exp)* ~ "}" ~ ";"? }
 enum_member = { simple_name ~ (("=" ~ decimal_integer) | ("=" ~ hex_integer) )? }
 
 // ---------------------- EXPRESSION
-expression = { bitwise_exp ~ (logical_operator ~ bitwise_exp)* }
+expression = { nesting_guard ~ bitwise_exp ~ (logical_operator ~ bitwise_exp)* ~ DROP }
 logical_operator = { "&&" | ^"||" }
 
 bitwise_exp = { as_expression ~ (bitwise_operator ~ as_expression)* }
@@ -185,7 +189,8 @@ format_op = _{ ^"-f" }
 range_exp = { 
     unary_exp ~ (WHITESPACE* ~ ".." ~ WHITESPACE* ~ unary_exp)? }
 
-unary_exp = { expression_with_unary_operator | primary_expression }
+// `(T)(...)` is a cast; also trying it as a call on `(T)` is exponential when parsing fails
+unary_exp = { nesting_guard ~ (expression_with_unary_operator | !(cast_literal ~ "(") ~ primary_expression) ~ DROP }
 
 negate_op = { "!" }
 bitwise_negate_op = { "~" }
@@ -199,15 +204,14 @@ expression_with_unary_operator = {
 
 pre_inc_expression = { "++" ~ variable }
 pre_dec_expression = { "--" ~ variable }
-cast_expression = { !WHITESPACE ~ cast_literal ~(unary_exp | parenthesized_expression) }
+cast_expression = { !WHITESPACE ~ cast_literal ~ unary_exp }
 
 //------------------------------------PRIMARY EXPRESSION
 primary_expression = {
     new_expression
-    | value_access
     | post_inc_expression
     | post_dec_expression
-    | value 
+    | value_access
 }
 post_inc_expression = { variable ~ "++" }
 post_dec_expression = { variable ~ "--" }
@@ -216,9 +220,10 @@ value_access = { value ~
     (
         parenthesis_arg_list
         | method_invocation
-        | member_access
+        // `.name(` is always a method_invocation; retrying it as member + call is exponential
+        | member_access ~ !"("
         | element_access
-    )+
+    )*
 }
 member_access = { "." ~ member_name }
 member_name = {
@@ -242,7 +247,8 @@ expression_access = { variable ~
     (
         parenthesis_arg_list
         | method_invocation
-        | member_access
+        // `.name(` is always a method_invocation; retrying it as member + call is exponential
+        | member_access ~ !"("
         | element_access
     )*
 }
@@ -396,7 +402,7 @@ type_literal = ${ dimensions |
 }
 dimensions = { dimension+ }
 type_literals = { type_literal ~ (BREAK* ~ "," ~ BREAK* ~ type_literal)* }
-generic_type = { "<" ~ type_literals ~ ">" }
+generic_type = { "<" ~ nesting_guard ~ type_literals ~ DROP ~ ">" }
 dimension = { "[" ~ decimal_integer? ~ "]" }
 
 //-----------------------ATTRIBUTES

@@ -33,6 +33,9 @@ pub enum ValError {
 
     #[error("Invalid argument count. Expected {0}, found {1}")]
     InvalidArgumentCount(usize, usize),
+
+    #[error("Limit exceeded: {0}")]
+    LimitExceeded(String),
 }
 
 impl From<RuntimeError> for ValError {
