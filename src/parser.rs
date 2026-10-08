@@ -1,6 +1,7 @@
 mod attributes;
 mod error;
 mod flow_control;
+mod limits;
 mod predicates;
 mod program_result;
 mod stream_message;
@@ -22,14 +23,13 @@ type ParserResult<T> = core::result::Result<T, ParserError>;
 use error::ParserError;
 type PestError = pest::error::Error<Rule>;
 use pest::Parser;
-use pest_derive::Parser;
 use predicates::{ArithmeticPred, BitwisePred, LogicalPred, StringPred};
 pub use program_result::{ProgramResult, PsValue};
 pub use token::{
     ExpressionToken, FunctionToken, MethodToken, StringExpandableToken, Token, Tokens,
 };
 pub(crate) use value::Val;
-use value::{StringBuilderType, ValType};
+use value::{StringBuilderType, ValError, ValType};
 pub use variables::Variables;
 use variables::{VarName, VariableError};
 
@@ -90,8 +90,8 @@ enum Access<'a> {
     Function(Vec<Val>),
 }
 
-#[derive(Parser)]
-#[grammar = "csharp.pest"]
+include!(concat!(env!("OUT_DIR"), "/csharp_parser.rs"));
+
 pub struct CSharpSession {
     variables: Variables,
     tokens: Tokens,
@@ -100,7 +100,13 @@ pub struct CSharpSession {
     skip_error: u32,
     types_map: HashMap<String, Box<dyn RuntimeTypeTrait>>,
     current_hierarchy: Vec<String>,
+    collecting_depth: u32,
+    // arguments evaluated by a failed access, reused by its `parse_access` fallback
+    args_cache: Vec<(ArgsKey, Vec<Val>)>,
+    reuse_args: bool,
 }
+
+type ArgsKey = (usize, usize);
 
 impl Default for CSharpSession {
     fn default() -> Self {
@@ -146,6 +152,9 @@ impl<'a> CSharpSession {
             skip_error: 0,
             types_map,
             current_hierarchy: Default::default(),
+            collecting_depth: 0,
+            args_cache: Vec::new(),
+            reuse_args: false,
         }
     }
 
@@ -260,8 +269,12 @@ impl<'a> CSharpSession {
     /// println!("Deobfuscated code: {:?}", program_result.deobfuscated());
     /// ```
     pub fn parse_input(&mut self, input: &str) -> Result<ProgramResult, ParserError> {
+        limits::run_guarded(|| self.parse_input_impl(input))
+    }
+
+    fn parse_input_impl(&mut self, input: &str) -> Result<ProgramResult, ParserError> {
         let input = input.trim();
-        let mut pairs = CSharpSession::parse(Rule::program, input)?;
+        let mut pairs = Self::parse_limited(Rule::program, input)?;
         let program_token = pairs.next().expect("");
         check_rule!(program_token, Rule::program);
 
@@ -288,7 +301,7 @@ impl<'a> CSharpSession {
     }
 
     pub fn run(&mut self) -> Result<(), ParserError> {
-        todo!();
+        Err(ParserError::NotImplemented("run".to_string()))
     }
 
     // pub(crate) fn parse_statements_string(
@@ -320,7 +333,14 @@ impl<'a> CSharpSession {
         &mut self,
         input: &str,
     ) -> Result<ProgramResult, ParserError> {
-        let mut pairs = CSharpSession::parse(Rule::statements, input)?;
+        limits::run_guarded(|| self.parse_statements_string_as_program_impl(input))
+    }
+
+    fn parse_statements_string_as_program_impl(
+        &mut self,
+        input: &str,
+    ) -> Result<ProgramResult, ParserError> {
+        let mut pairs = Self::parse_limited(Rule::statements, input)?;
         let statements_token = pairs.next().expect("");
 
         let (script_last_output, mut result) = self.parse_statements_token(statements_token)?;
@@ -506,6 +526,12 @@ impl<'a> CSharpSession {
     pub(crate) fn eval_if_statement(&mut self, token: Pair<'a>) -> ParserResult<()> {
         check_rule!(token, Rule::if_statement);
 
+        // collecting doubles the work per nesting level; deeper ifs are only walked
+        // once
+        if self.collecting_depth >= limits::MAX_IF_COLLECT_DEPTH {
+            return self.impl_if_statement_collect_tokens(token);
+        }
+
         //collect tokens from each case
         self.if_statement_collect_tokens(token.clone());
 
@@ -547,9 +573,11 @@ impl<'a> CSharpSession {
         // deobfuscated if statement
         let results = self.results.clone();
         let current_variables = self.variables.clone();
+        self.collecting_depth += 1;
         if let Err(err) = self.impl_if_statement_collect_tokens(token.clone()) {
             log::debug!("Error during if_statement_collect_tokens: {:?}", err);
         }
+        self.collecting_depth -= 1;
         self.variables = current_variables;
         self.results = results;
     }
@@ -690,7 +718,7 @@ impl<'a> CSharpSession {
             //todo
             return Ok(());
         }
-        check_rule!(token, Rule::class_body);
+        check_rule!(token, Rule::enum_body);
         let enum_body_pairs = token.into_inner();
 
         let mut properties = ClassProperties::new();
@@ -1090,7 +1118,7 @@ impl<'a> CSharpSession {
     }
 
     fn eval_statement_block_string(&mut self, input: &str) -> (Val, Option<FlowControl>) {
-        let Ok(mut pairs) = CSharpSession::parse(Rule::statement_block, input) else {
+        let Ok(mut pairs) = Self::parse_limited(Rule::statement_block, input) else {
             return (Val::Null, None);
         };
         let statement_block_token = pairs.next().expect("");
@@ -1099,7 +1127,22 @@ impl<'a> CSharpSession {
         self.eval_statement_block(statement_block_token)
     }
 
+    fn parse_limited(rule: Rule, input: &str) -> ParserResult<Pairs<'_>> {
+        limits::start_parse(input.len());
+        CSharpSession::parse(rule, input).map_err(limits::parse_error)
+    }
+
     fn eval_statement_block(&mut self, token: Pair<'a>) -> (Val, Option<FlowControl>) {
+        if let Err(err) = limits::enter() {
+            self.errors.push(err.into());
+            return (Val::Null, Some(FlowControl::Break));
+        }
+        let res = self.eval_statement_block_impl(token);
+        limits::leave();
+        res
+    }
+
+    fn eval_statement_block_impl(&mut self, token: Pair<'a>) -> (Val, Option<FlowControl>) {
         let statements = match token.as_rule() {
             Rule::statement_block => token.into_inner().next().unwrap(),
             Rule::statements => token,
@@ -1202,10 +1245,15 @@ impl<'a> CSharpSession {
                     check_rule!(member_access, Rule::member_access);
                     let member_name = get_member_name(member_access);
 
-                    let argument_list_token = pairs.next().unwrap();
-                    check_rule!(argument_list_token, Rule::argument_list);
+                    let args = match pairs.next() {
+                        Some(argument_list_token) => {
+                            check_rule!(argument_list_token, Rule::argument_list);
+                            self.eval_argument_list(argument_list_token)?
+                        }
+                        None => Vec::new(),
+                    };
 
-                    Access::Method(member_name, self.eval_argument_list(argument_list_token)?)
+                    Access::Method(member_name, args)
                 }
                 Rule::argument_list => Access::Function(self.eval_argument_list(access_token)?),
                 Rule::element_access => {
@@ -1377,6 +1425,18 @@ impl<'a> CSharpSession {
     }
 
     fn eval_argument_list(&mut self, token: Pair<'a>) -> ParserResult<Vec<Val>> {
+        let key = (token.as_str().as_ptr() as usize, token.as_str().len());
+        if self.reuse_args
+            && let Some((_, args)) = self.args_cache.iter().rev().find(|(k, _)| *k == key)
+        {
+            return Ok(args.clone());
+        }
+        let args = self.eval_argument_list_impl(token)?;
+        self.args_cache.push((key, args.clone()));
+        Ok(args)
+    }
+
+    fn eval_argument_list_impl(&mut self, token: Pair<'a>) -> ParserResult<Vec<Val>> {
         check_rule!(token, Rule::argument_list);
         self.skip_error += 1;
 
@@ -1537,19 +1597,24 @@ impl<'a> CSharpSession {
     fn eval_list_initialization(&mut self, token: Pair<'a>) -> ParserResult<Val> {
         check_rule!(token, Rule::list_initialization);
         let mut pairs = token.into_inner();
-        let mut token = pairs.next().unwrap();
-        let ttype = if let Rule::type_literal = token.as_rule() {
-            let ttype = self.eval_type_literal(token)?;
-            token = pairs.next().unwrap();
+        let mut token = pairs.next();
+        let ttype = if let Some(type_token) = token.clone()
+            && let Rule::type_literal = type_token.as_rule()
+        {
+            let ttype = self.eval_type_literal(type_token)?;
+            token = pairs.next();
             Some(ttype)
         } else {
             None
         };
 
-        let args = match token.as_rule() {
-            Rule::initializer_list => self.eval_initializer_list(token)?,
-            Rule::argument_list => self.eval_argument_list(token)?,
-            _ => unexpected_token!(token),
+        let args = match token {
+            Some(token) => match token.as_rule() {
+                Rule::initializer_list => self.eval_initializer_list(token)?,
+                Rule::argument_list => self.eval_argument_list(token)?,
+                _ => unexpected_token!(token),
+            },
+            None => Vec::new(),
         };
         if let Some(ttype) = ttype {
             ttype.init(args, self)
@@ -1653,15 +1718,31 @@ impl<'a> CSharpSession {
 
         let res = match token.as_rule() {
             Rule::new_expression => self.eval_new_expression(token.clone())?,
-            Rule::value_access => match self.eval_value_access(token.clone()) {
-                Ok(res) => res,
-                Err(err) => {
-                    log::debug!("eval_access error: {:?}", err);
-                    self.errors.push(err);
-                    self.parse_access(token)?
-                }
-            },
-            Rule::value => self.eval_value(token)?,
+            // a value without any accessor; `()` leaves no inner pair, so compare the text
+            Rule::value_access
+                if token.as_str()[token.clone().into_inner().next().unwrap().as_str().len()..]
+                    .trim()
+                    .is_empty() =>
+            {
+                self.eval_value(token.into_inner().next().unwrap())?
+            }
+            Rule::value_access => {
+                let reuse_args = std::mem::replace(&mut self.reuse_args, false);
+                let cache_len = self.args_cache.len();
+                let res = match self.eval_value_access(token.clone()) {
+                    Ok(res) => Ok(res),
+                    Err(err) => {
+                        log::debug!("eval_access error: {:?}", err);
+                        self.errors.push(err);
+                        // without the cache every nesting level would evaluate its arguments twice
+                        self.reuse_args = true;
+                        self.parse_access(token)
+                    }
+                };
+                self.args_cache.truncate(cache_len);
+                self.reuse_args = reuse_args;
+                res?
+            }
             Rule::post_inc_expression => {
                 let variable_token = token.into_inner().next().unwrap();
                 let var_name = Self::parse_variable(variable_token)?;
@@ -1716,7 +1797,7 @@ impl<'a> CSharpSession {
         let token = pairs.next().unwrap();
 
         match token.as_rule() {
-            Rule::dimension => {
+            Rule::dimensions => {
                 let dimensions = self.eval_dimensions(token)?;
                 let mut val_type = ValType::cast("object", &self.types_map)?;
                 for _dim in &dimensions {
@@ -1806,6 +1887,9 @@ impl<'a> CSharpSession {
         Ok(match key_token.as_rule() {
             Rule::simple_name => key_token.as_str().to_string(),
             Rule::unary_exp => self.eval_unary_exp(key_token)?.cast_to_string(),
+            Rule::dictionary_string => self
+                .eval_string_literal(key_token.into_inner().next().unwrap())?
+                .cast_to_string(),
             _ => unexpected_token!(key_token),
         })
     }
@@ -1827,6 +1911,7 @@ impl<'a> CSharpSession {
         let mut hash = HashMap::new();
         for token in pairs {
             let (key, value) = self.eval_hash_entry(token)?;
+            limits::check_value_depth(&value)?;
             hash.insert(key, value);
         }
         Ok(Val::HashTable(hash))
@@ -1902,8 +1987,8 @@ impl<'a> CSharpSession {
 
     fn eval_decimal_integer(&mut self, token: Pair<'a>) -> ParserResult<Val> {
         check_rule!(token, Rule::decimal_integer);
-        let int_val = token.into_inner().next().unwrap();
-        Ok(Val::Int(int_val.as_str().parse::<i64>().unwrap()))
+        let int_val = token.as_str().replace('_', "").parse::<i64>();
+        Ok(Val::Int(int_val.map_err(ValError::from)?))
     }
 
     fn eval_number(&mut self, token: Pair<'a>) -> ParserResult<Val> {
@@ -1912,9 +1997,14 @@ impl<'a> CSharpSession {
         let token = pairs.next().unwrap();
         let v = match token.as_rule() {
             Rule::decimal_integer => Val::Int(token.as_str().parse::<i64>().unwrap_or_default()),
-            Rule::hex_integer => {
-                let int_val = token.into_inner().next().unwrap();
-                Val::Int(i64::from_str_radix(int_val.as_str(), 16).unwrap())
+            Rule::hex_integer | Rule::binary_integer => {
+                let radix = if token.as_rule() == Rule::hex_integer {
+                    16
+                } else {
+                    2
+                };
+                let int_val = token.into_inner().next().unwrap().as_str().replace('_', "");
+                Val::Int(i64::from_str_radix(&int_val, radix).map_err(ValError::from)?)
             }
             Rule::float => Val::Float(token.as_str().trim().parse::<f64>()?),
             _ => unexpected_token!(token),
@@ -1933,7 +2023,8 @@ impl<'a> CSharpSession {
     }
 
     fn eval_range_exp(&mut self, token: Pair<'a>) -> ParserResult<Val> {
-        fn range(mut left: i64, right: i64) -> Vec<Val> {
+        fn range(mut left: i64, right: i64) -> ParserResult<Vec<Val>> {
+            limits::alloc_array(left.abs_diff(right).saturating_add(1) as usize)?;
             let mut v = Vec::new();
             if left <= right {
                 loop {
@@ -1952,7 +2043,7 @@ impl<'a> CSharpSession {
                     left -= 1;
                 }
             }
-            v.into_iter().map(Val::Int).collect()
+            Ok(v.into_iter().map(Val::Int).collect())
         }
         check_rule!(token, Rule::range_exp);
         let mut pairs = token.into_inner();
@@ -1962,7 +2053,7 @@ impl<'a> CSharpSession {
             check_rule!(token, Rule::unary_exp);
             let left = left.cast_to_int()?;
             let right = self.eval_unary_exp(token)?.cast_to_int()?;
-            Ok(Val::Array(range(left, right)))
+            Ok(Val::Array(range(left, right)?))
         } else {
             Ok(left)
         }
@@ -1972,7 +2063,7 @@ impl<'a> CSharpSession {
         fn format_with_vec(fmt: &str, args: Vec<Val>) -> ParserResult<String> {
             fn strange_special_case(fmt: &str, n: i64) -> String {
                 fn split_digits(n: i64) -> Vec<u8> {
-                    n.abs() // ignore sign for digit splitting
+                    n.unsigned_abs() // ignore sign for digit splitting
                         .to_string()
                         .chars()
                         .filter_map(|c| c.to_digit(10).map(|opt| opt as u8))
@@ -2019,7 +2110,8 @@ impl<'a> CSharpSession {
                             match args.get(index) {
                                 Some(val) => match spec {
                                     Some(s) if s.starts_with('N') => {
-                                        let precision = s[1..].parse::<usize>().unwrap_or(2);
+                                        let precision =
+                                            s[1..].parse::<usize>().unwrap_or(2).min(99);
                                         if let Ok(f) = val.cast_to_float() {
                                             format!("{:.1$}", f, precision)
                                         } else {
@@ -2040,6 +2132,7 @@ impl<'a> CSharpSession {
                                 Some(val) => match spec {
                                     Some(s) => {
                                         let spaces = s.parse::<usize>().unwrap_or(0);
+                                        limits::alloc_string(spaces)?;
                                         let spaces_str = " ".repeat(spaces);
                                         format!("{spaces_str}{}", val.cast_to_string())
                                     }
@@ -2065,8 +2158,9 @@ impl<'a> CSharpSession {
                         i += 1;
                     }
                 } else {
-                    output.push(fmt[i..].chars().next().unwrap());
-                    i += 1;
+                    let c = fmt[i..].chars().next().unwrap();
+                    output.push(c);
+                    i += c.len_utf8();
                 }
             }
 
@@ -2322,6 +2416,15 @@ impl<'a> CSharpSession {
     }
 
     fn eval_expression(&mut self, token: Pair<'a>) -> ParserResult<Val> {
+        limits::enter()?;
+        let res = self.eval_expression_impl(token);
+        limits::leave();
+        let res = res?;
+        limits::charge(res.approx_size())?;
+        Ok(res)
+    }
+
+    fn eval_expression_impl(&mut self, token: Pair<'a>) -> ParserResult<Val> {
         check_rule!(token, Rule::expression);
         let token_string = token.as_str().trim().to_string();
 

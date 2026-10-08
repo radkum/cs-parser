@@ -32,7 +32,9 @@ impl From<MethodError> for RuntimeError {
 
 pub type RuntimeResult<T> = core::result::Result<T, RuntimeError>;
 
-pub(crate) trait RuntimeObjectTrait: std::fmt::Debug + std::fmt::Display {
+pub(crate) trait RuntimeObjectTrait:
+    std::fmt::Debug + std::fmt::Display + Send + Sync
+{
     fn method(&self, method_name: MethodName) -> RuntimeResult<MethodCallType> {
         Err(MethodError::NotImplemented(method_name.name().to_string()).into())
     }

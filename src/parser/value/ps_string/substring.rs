@@ -1,4 +1,4 @@
-use super::{MethodError, MethodResult, PsString, Val};
+use super::{MethodError, MethodResult, PsString, Val, char_to_byte_index};
 
 impl PsString {
     fn args_for_remove_and_substring(
@@ -16,7 +16,10 @@ impl PsString {
         if !matches!(args[0], Val::Int(_)) {
             return Err(MethodError::new_incorrect_args(fn_name, args));
         }
-        let start_index = args[0].cast_to_int()? as usize;
+        let input_len = input.chars().count();
+        let Ok(start_index) = usize::try_from(args[0].cast_to_int()?) else {
+            return Err(MethodError::new_incorrect_args(fn_name, args));
+        };
 
         // substring is overloaded method. It can take 1 or 2 arguments. Second argument
         // is optional
@@ -25,8 +28,10 @@ impl PsString {
                 return Err(MethodError::new_incorrect_args(fn_name, args));
             }
 
-            let length = args[1].cast_to_int()? as usize;
-            if start_index + length > input.len() {
+            let Ok(length) = usize::try_from(args[1].cast_to_int()?) else {
+                return Err(MethodError::new_incorrect_args(fn_name, args));
+            };
+            if start_index.saturating_add(length) > input_len {
                 return Err(MethodError::Exception(format!(
                     "Exception calling \"{}\" with \"2\" argument(s): \"Index and length must \
                      refer to a location within the string. Parameter name: length\"",
@@ -35,10 +40,10 @@ impl PsString {
             }
             length
         } else {
-            input.len()
+            input_len
         };
 
-        if start_index > input.len() {
+        if start_index > input_len {
             return Err(MethodError::Exception(format!(
                 "Exception calling \"{}\" with \"1\" argument(s): \"startIndex cannot be larger \
                  than length of string. Parameter name: startIndex\"",
@@ -46,8 +51,9 @@ impl PsString {
             )));
         }
 
-        let end_index = std::cmp::min(start_index + length, input.len());
-        Ok((start_index, end_index))
+        let end_index = std::cmp::min(start_index.saturating_add(length), input_len);
+        let byte_index = |i| char_to_byte_index(input, i as i64).unwrap_or(input.len());
+        Ok((byte_index(start_index), byte_index(end_index)))
     }
 
     pub(super) fn substring(&self, args: Vec<Val>) -> MethodResult<Val> {

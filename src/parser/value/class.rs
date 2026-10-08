@@ -36,9 +36,6 @@ pub(crate) struct ClassType {
     methods: MethodMap,
 }
 
-unsafe impl Sync for ClassType {}
-unsafe impl Send for ClassType {}
-
 fn strip_case_insensitive_prefix<'a>(s: &'a str, prefix: &str) -> Option<&'a str> {
     if s.to_ascii_lowercase()
         .starts_with(&prefix.to_ascii_lowercase())

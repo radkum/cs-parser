@@ -217,6 +217,9 @@ impl Variables {
     // }
 
     pub(crate) fn current_scope(&mut self) -> &mut VariableMap {
+        if self.state.0 as usize >= self.variables_stack.len() {
+            self.init();
+        }
         let depth = self.state.0;
         &mut self.variables_stack[depth as usize]
     }
@@ -397,7 +400,7 @@ impl Variables {
             0 => {} /* unreachable */
             _ => {
                 self.variables_stack.pop();
-                self.state = Stack(self.variables_stack.len() as u32 - 1);
+                self.state = Stack(self.variables_stack.len().saturating_sub(1) as u32);
             }
         }
     }

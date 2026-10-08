@@ -11,7 +11,10 @@ pub(super) use type_info::ObjectType;
 use type_info::{ArrayType, ValueType};
 
 use super::{RuntimeResult, Val, ValError, ValResult, string_builder::StringBuilderType};
-use crate::{CSharpSession, parser::ParserResult};
+use crate::{
+    CSharpSession,
+    parser::{ParserResult, limits},
+};
 
 #[derive(Debug, SmartDefault, PartialEq, Clone)]
 pub enum ValType {
@@ -136,6 +139,7 @@ impl RuntimeTypeTrait for ValType {
                 } else {
                     let mut arr = Vec::with_capacity(args.len());
                     for arg in args {
+                        limits::check_value_depth(&arg)?;
                         arr.push(arg);
                     }
                     Ok(Val::Array(arr))
@@ -157,13 +161,16 @@ impl RuntimeTypeTrait for ValType {
                     .ok_or_else(|| ValError::UnknownType(name.to_string()))?;
                 rt.init(args, sesssion)
             }
-            _ => todo!(),
+            _ => match args.as_slice() {
+                [arg] => Ok(arg.cast_to_type(self)?),
+                _ => Err(ValError::InvalidArgumentCount(1, args.len()).into()),
+            },
         }
     }
 
     fn base_type(&self) -> Box<dyn RuntimeTypeTrait> {
         match self {
-            ValType::Null => unreachable!(),
+            ValType::Null => Box::new(ObjectType {}),
             ValType::Char | ValType::Bool | ValType::Switch | ValType::Int | ValType::Float => {
                 Box::new(ValueType {})
             }
